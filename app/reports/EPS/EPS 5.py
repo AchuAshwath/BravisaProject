@@ -1,0 +1,1981 @@
+#Script to compile and insert daily EPS reports per each company on BTT List
+import datetime
+import requests
+import os.path
+import os
+from zipfile import ZipFile
+import csv
+import psycopg2
+import pandas as pd
+import calendar
+import numpy as np
+import pandas.io.sql as sqlio
+import time
+import math
+from datetime import timedelta
+
+
+today = np.nan
+
+
+class EPS:
+
+    """ Generating EPS Report for Quarters
+         And calculating the data of EPS growth and Sales growth
+        EPS Rating for quarters and TTM data for previous one, two and three years
+    """
+
+    def __init__(self):
+        pass
+    
+    def get_closest_quarter(self, target):
+        """Fetch Closest quarter from the current date """
+        
+        # candidate list, nicely enough none of these
+        # are in February, so the month lengths are fixed
+        candidates = [
+            datetime.date(target.year - 1, 12, 31),
+            datetime.date(target.year, 3, 31),
+            datetime.date(target.year, 6, 30),
+            datetime.date(target.year, 9, 30),
+            datetime.date(target.year, 12, 31),
+        ]
+        # take the minimum according to the absolute distance to
+        # the target date.
+
+        for date in candidates:
+            if target < date:
+                candidates.remove(date)
+        # print("date",min(candidates, key=lambda d: abs(target - d)))
+
+        return min(candidates, key=lambda d: abs(target - d))
+
+    def get_previous_quarter(self, target):
+        """ Fetch previous quarter from current quarter """
+
+        curr_qrt = self.get_closest_quarter(target)
+        curr_qrt_dec = datetime.date(curr_qrt.year, curr_qrt.month, (curr_qrt.day - 2))
+        prev_qrt = self.get_closest_quarter(curr_qrt_dec)
+        return prev_qrt
+
+    def get_year_before_quarter(self, target):
+        """Fetching last four quarter from the current quarter"""
+        
+        curr_qrt = self.get_closest_quarter(target)
+        one_qtr_back = self.get_previous_quarter(curr_qrt)
+        two_qtr_back = self.get_previous_quarter(one_qtr_back)
+        three_qtr_back = self.get_previous_quarter(two_qtr_back)
+        four_qtr_back = self.get_previous_quarter(three_qtr_back)
+        return four_qtr_back
+
+    def get_two_years_before_quarter(self, target):
+        """ fetching the two year back quarter"""
+        
+        year_back = self.get_year_before_quarter(target)
+        two_years_back = self.get_year_before_quarter(year_back)
+        return two_years_back
+
+    def get_three_years_before_quarter(self, target):
+        """ fetch quarter from last three year back """
+        
+        year_back = self.get_year_before_quarter(target)
+        two_years_back = self.get_year_before_quarter(year_back)
+        three_years_back = self.get_year_before_quarter(two_years_back)
+        return three_years_back
+
+    def get_four_years_before_quarter(self, target):
+        """ fetch quarter from last four year back """
+        
+        year_back = self.get_year_before_quarter(target)
+        two_years_back = self.get_year_before_quarter(year_back)
+        three_years_back = self.get_year_before_quarter(two_years_back)
+        four_years_back = self.get_year_before_quarter(three_years_back)
+        return four_years_back
+
+    def quarterly_eps_history_insert(self, conn):
+        """ Inserting the quarterly EPS history,
+
+        Operation:
+            Take data from QuarterlyResults table for closest quarter and
+            Fetch the value of Q1 and Q2 EPS and Sales growth,
+            And genearting the history for quarterly EPS data.
+        """
+        # today = datetime.datetime.now() + datetime.timedelta(0)
+        # today = today.date()
+
+        # take the closest quarter as start quarter
+        start_qtr = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+        print("Inserting QTR EPS Values for dates until: "+start_qtr)
+
+        # fetch query from QuarterlyResults where YearEndig is closest quarter
+        sql =  'SELECT * from public."QuarterlyResults"  WHERE "YearEnding" = \'' + start_qtr + '\';'
+        quarterly_list = pd.read_sql_query(sql, con = conn)
+
+        quarterly_list = quarterly_list.rename(columns={'InterestCharges': 'Interest', 'PL_Before_Tax': 'OPM', 'TaxCharges': 'Tax', 'PL_After_TaxFromOrdineryActivities': 'PATRAW', 'EquityCapital': 'Equity', 'ReservesAndSurplus': 'Reserves'})
+
+        quarterly_list[quarterly_list.columns[5:60]] = quarterly_list[quarterly_list.columns[5:60]].replace(r'[?$,]', '', regex=True).astype(float)
+        quarterly_list['Sales'] =  quarterly_list['TotalIncomeFromOperations'] + quarterly_list['IntOrDiscOnAdvOrBills'] + quarterly_list['IncomeOnInvestments']\
+        +quarterly_list['IntOnBalancesWithRBI'] + quarterly_list['Others']  + quarterly_list['OtherRecurringIncome']
+        quarterly_list['Expenses'] = quarterly_list['StockAdjustment'] + quarterly_list['RawMaterialConsumed']+quarterly_list['PurchaseOfTradedGoods']\
+        +quarterly_list['PowerAndFuel']+quarterly_list['EmployeeExpenses']+quarterly_list['Excise']+quarterly_list['AdminAndSellingExpenses']\
+        +quarterly_list['ResearchAndDevelopmentExpenses'] + quarterly_list['ExpensesCapitalised'] + quarterly_list['OtherExpeses'] 
+        quarterly_list['EBIDTA'] = quarterly_list['Sales'] - quarterly_list['Expenses']
+        quarterly_list['Extraordinary'] = quarterly_list['ExtraOrdinaryItem'] + quarterly_list['ExceptionalItems']
+
+        quarterly_list['Ext_Flag'] = 1
+
+        quarterly_list['PAT'] =	quarterly_list['PATRAW'] 
+        
+        quarterly_list['EPS'] =quarterly_list['PAT']/quarterly_list['Equity']
+
+        quarterly_list['NPM'] = quarterly_list['PAT']/quarterly_list['Sales'] * 100
+
+        print("Total length of History QTR List: ", len(quarterly_list.index))
+
+        for index, row in quarterly_list.iterrows():
+            
+            #print("Quarterly EPS for Item: ", row['CompanyCode'], row['YearEnding'])
+
+            prev_year = self.get_year_before_quarter(row['YearEnding'])
+            prev_qtr = self.get_previous_quarter(row['YearEnding'])
+            prev_year_qtr = self.get_year_before_quarter(prev_qtr)
+
+            #################
+
+            eps_prev_list = quarterly_list.loc[(quarterly_list["CompanyCode"]==row['CompanyCode']) & (quarterly_list["YearEnding"] == prev_year)]["EPS"]
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current = row['EPS']
+
+            quarterly_list.loc[index, 'Q1 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+
+            sales_prev_list = quarterly_list.loc[(quarterly_list["CompanyCode"]==row['CompanyCode']) & (quarterly_list["YearEnding"] == prev_year)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan
+            
+            sales_current = row['Sales']
+
+            quarterly_list.loc[index, 'Q1 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev  !=0 else np.nan
+
+            #################  
+
+            #################
+
+            eps_prev_list = quarterly_list.loc[(quarterly_list["CompanyCode"]==row['CompanyCode']) & (quarterly_list["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            eps_current_list = quarterly_list.loc[(quarterly_list["CompanyCode"]==row['CompanyCode']) & (quarterly_list["YearEnding"] == prev_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan		
+
+            quarterly_list.loc[index, 'Q2 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            quarterly_list.loc[index , 'Q2 EPS'] = eps_current
+
+            #################
+
+            sales_prev_list = quarterly_list.loc[(quarterly_list["CompanyCode"]==row['CompanyCode']) & (quarterly_list["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan
+            sales_current_list = quarterly_list.loc[(quarterly_list["CompanyCode"]==row['CompanyCode']) & (quarterly_list["YearEnding"] == prev_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan
+
+            quarterly_list.loc[index, 'Q2 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev !=0 else np.nan
+            quarterly_list.loc[index , 'Q2 Sales'] = sales_current
+
+            #################  
+        
+        quarterly_eps_list = quarterly_list[['CompanyCode', 'YearEnding', 'Months', 'Quarter', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary',\
+        'OPM', 'Tax', 'PATRAW', 'PAT','Equity', 'Reserves', 'EPS', 'NPM', 'Ext_Flag', 'Q1 EPS Growth', 'Q1 Sales Growth', 'Q2 EPS', 'Q2 Sales','Q2 EPS Growth', 'Q2 Sales Growth']]
+
+
+        self.insert_quarterly_eps_resulsts(quarterly_eps_list, conn)
+
+    def inset_ttm_history(self, conn):
+        """ Insert TTM history
+
+        Operation:
+            fetch the data of TTM for closest and previous quarter,
+            and insert TTM History.	
+        """
+
+        today1 = datetime.date(2020, 7, 1)
+        back_date_history = datetime.date(2020, 1, 1)
+        
+        print("Start Date: " + (today1).strftime("%Y-%m-%d"))
+        print("End Date: " + (back_date_history).strftime("%Y-%m-%d"))
+
+        while(today1 >= back_date_history):
+
+            curr_qtr = self.get_closest_quarter(today1).strftime("%Y-%m-%d")
+            print("--------------------------------------------------------------------")
+            print("Caculating TTM Values for Qtr: "+ curr_qtr)
+
+
+            start = time.time()
+            ttm = self.ttm_quarterly_list(today1, conn)
+            end = time.time()
+            print("Time taken to calculate TTM for Qtr:" + str((end - start)))
+            
+
+            print("\t\t Inserting TTM.....")
+            self.insert_ttm(ttm, conn)
+
+            today1 = self.get_previous_quarter(today1)
+            print("TTM insert completed")
+            print("--------------------------------------------------------------------")
+
+    def set_daily_qtr_eps(self, conn, today):
+        """Fetching the data for daily Quarterly EPS,
+
+        Operation:
+            Takes the data from quarterly results, and compares against
+            quarterly EPS to get latest available data
+            and calculating the value of 'sales','Expenses',
+            'EBIDTA','Extraordinary','Ext_Flag','EPS' and 'NPM',
+
+        Return:
+            Quarterly EPS list .
+        """
+
+        start_qtr = self.get_previous_quarter(today).strftime("%Y-%m-%d")
+        end_qtr = self.get_closest_quarter(today).strftime("%Y-%m-%d") 
+        print("End Qtr: ", end_qtr)
+        # print("START QTR: {} END QTR: {}".format(start_qtr, end_qtr))
+        sql = 'SELECT QR.* from public."QuarterlyResults" QR LEFT JOIN public."QuarterlyEPS" QE on QR."CompanyCode"= QE."CompanyCode" and QE."YearEnding" = QR."YearEnding"\
+        WHERE QR."YearEnding" <= \'' + end_qtr + '\' AND QE."CompanyCode" is null;'
+
+        #For running backdated daily reports in case of bugs add the following to the above query
+        #AND QR."ModifiedDate"<=\''+str(today + datetime.timedelta(1)))+'\'
+
+        quarterly_list = pd.read_sql_query(sql, con = conn)
+        
+        print("CompanyCode NULL List: ", len(quarterly_list))
+        # Renaming the column name
+        quarterly_list = quarterly_list.rename(columns={'InterestCharges': 'Interest', 'PL_Before_Tax': 'OPM', 'TaxCharges': 'Tax',\
+        'PL_After_TaxFromOrdineryActivities': 'PATRAW' , 'EquityCapital': 'Equity', 'ReservesAndSurplus': 'Reserves' })
+        
+        # column sclicing
+        quarterly_list[quarterly_list.columns[5:60]] = quarterly_list[quarterly_list.columns[5:60]].replace(r'[?$,]', '', regex=True).astype(float)
+
+        quarterly_list['Sales'] =  quarterly_list['TotalIncomeFromOperations'] + quarterly_list['IntOrDiscOnAdvOrBills']  + quarterly_list['IncomeOnInvestments']\
+        + quarterly_list['IntOnBalancesWithRBI'] + quarterly_list['Others']  + quarterly_list['OtherRecurringIncome']
+
+        quarterly_list['Expenses'] = quarterly_list['StockAdjustment'] + quarterly_list['RawMaterialConsumed']+quarterly_list['PurchaseOfTradedGoods']\
+        +quarterly_list['PowerAndFuel']+quarterly_list['EmployeeExpenses']+quarterly_list['Excise']+quarterly_list['AdminAndSellingExpenses']+quarterly_list['ResearchAndDevelopmentExpenses']\
+        + quarterly_list['ExpensesCapitalised'] + quarterly_list['OtherExpeses'] 
+
+        quarterly_list['EBIDTA'] = quarterly_list['Sales'] - quarterly_list['Expenses']
+
+        quarterly_list['Extraordinary'] = quarterly_list['ExtraOrdinaryItem'] + quarterly_list['ExceptionalItems']
+        # RULE_CHANGE
+        quarterly_list['Ext_Flag'] = [0 if x == 0 else 0 for x in quarterly_list['Extraordinary']] # 0 if x == 0 else 0
+
+        quarterly_list['PAT'] = np.nan
+
+        # print("quarterly_list: ", len(quarterly_list), flush = True)
+
+        for index, row in quarterly_list.iterrows():
+            quarterly_list.loc[index, 'PAT'] =	row['PATRAW'] # if row['Ext_Flag'] == 0 else np.nan ##????
+
+        quarterly_list['EPS'] = quarterly_list['PAT']/quarterly_list['Equity']
+
+        
+        quarterly_list['NPM'] = quarterly_list['PAT']/quarterly_list['Sales'] * 100
+        
+        quarterly_eps_list = quarterly_list[['CompanyCode', 'YearEnding', 'Months', 'Quarter', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary',\
+        'OPM', 'Tax', 'PATRAW', 'PAT', 'Equity', 'Reserves', 'EPS', 'NPM', 'Ext_Flag']]
+
+        # q1_f_qlist = open("zz_QUARTERLYLIST_{}.txt".format(today), "w+")
+        # q1_f_qlist.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # for index, row in quarterly_list.iterrows():
+        # 	q1_f_qlist.write("\nCompanyCode: {} PAT: {}  SALES: {}  Equity: {} = EPS: {} \t ExtFlag: {}\n".format(str(quarterly_list['CompanyCode']), str(quarterly_list['PAT']),str(quarterly_list['Sales']), quarterly_list(row['EPS']), quarterly_list(row['EPS']),str(quarterly_list['Ext_Flag'])))
+        # q1_f_qlist.close()
+
+        quarterly_eps_list = pd.concat([quarterly_eps_list, pd.DataFrame(columns = ['Q1 EPS Growth','Q1 Sales Growth', 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales','Q2 Sales Growth'])], sort=False)
+        
+        return quarterly_eps_list
+
+    def consolidated_set_daily_qtr_eps(self, conn, today):
+        """Fetching the data for daily Quarterly EPS,
+
+        Operation:
+            Takes the data from quarterly results, and compares against
+            quarterly EPS to get latest available data
+            and calculating the value of 'sales','Expenses',
+            'EBIDTA','Extraordinary','Ext_Flag','EPS' and 'NPM',
+
+        Return:
+            Quarterly EPS list .
+        """
+        start_qtr = self.get_previous_quarter(today).strftime("%Y-%m-%d")
+        end_qtr = self.get_closest_quarter(today).strftime("%Y-%m-%d") 
+        print("End Qtr: ", end_qtr)
+        # print("START QTR: {} END QTR: {}".format(start_qtr, end_qtr))
+        sql = 'SELECT QR.* from public."ConsolidatedQuarterlyResults" QR LEFT JOIN public."ConsolidatedQuarterlyEPS" QE on QR."CompanyCode"= QE."CompanyCode" and QE."YearEnding" = QR."YearEnding"\
+        WHERE QR."YearEnding" <= \'' + end_qtr + '\' AND QE."CompanyCode" is null;'
+
+        #For running backdated daily reports in case of bugs add the following to the above query
+        #AND QR."ModifiedDate"<=\''+str(today + datetime.timedelta(1)))+'\'
+
+        quarterly_list = pd.read_sql_query(sql, con = conn)
+        
+        print("CompanyCode NULL List: ", len(quarterly_list))
+        # Renaming the column name
+        quarterly_list = quarterly_list.rename(columns={'InterestCharges': 'Interest', 'PL_Before_Tax': 'OPM', 'TaxCharges': 'Tax',\
+        'PL_After_TaxFromOrdineryActivities': 'PATRAW' , 'EquityCapital': 'Equity', 'ReservesAndSurplus': 'Reserves' })
+        
+        # column sclicing
+        quarterly_list[quarterly_list.columns[5:60]] = quarterly_list[quarterly_list.columns[5:60]].replace(r'[?$,]', '', regex=True).astype(float)
+
+        quarterly_list['Sales'] =  quarterly_list['TotalIncomeFromOperations'] + quarterly_list['IntOrDiscOnAdvOrBills']  + quarterly_list['IncomeOnInvestements'] \
+        + quarterly_list['IntOnBalancesWithRBI'] + quarterly_list['Others']  + quarterly_list['OtherRecurringIncome']
+
+        quarterly_list['Expenses'] = quarterly_list['StockAdjustment'] + quarterly_list['RawMaterialConsumed']+quarterly_list['PurchaseOfTradedGoods']\
+        +quarterly_list['PowerAndFuel']+quarterly_list['EmployeeExpenses']+quarterly_list['Excise']+quarterly_list['AdminAndSellingExpenses']+quarterly_list['ResearchAndDevelopmentExpenses']\
+        + quarterly_list['ExpensesCapitalised'] + quarterly_list['OtherExpeses'] 
+
+        quarterly_list['EBIDTA'] = quarterly_list['Sales'] - quarterly_list['Expenses']
+
+        quarterly_list['Extraordinary'] = quarterly_list['ExtraOrdinaryItem'] + quarterly_list['ExceptionalItems']
+        # RULE_CHANGE
+        quarterly_list['Ext_Flag'] = [0 if x == 0 else 0 for x in quarterly_list['Extraordinary']] # 0 if x == 0 else 0
+
+        quarterly_list['PAT'] = np.nan
+
+        # print("quarterly_list: ", len(quarterly_list), flush = True)
+
+        for index, row in quarterly_list.iterrows():
+            quarterly_list.loc[index, 'PAT'] =	row['PATRAW'] if row['Ext_Flag'] == 0 else np.nan
+
+        quarterly_list['EPS'] = quarterly_list['PAT']/quarterly_list['Equity']
+
+        
+        quarterly_list['NPM'] = quarterly_list['PAT']/quarterly_list['Sales'] * 100
+        
+        quarterly_eps_list = quarterly_list[['CompanyCode', 'YearEnding', 'Months', 'Quarter', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary',\
+        'OPM', 'Tax', 'PATRAW', 'PAT', 'Equity', 'Reserves', 'EPS', 'NPM', 'Ext_Flag']]
+
+        # q1_f_qlist = open("zz_QUARTERLYLIST.txt".format(today), "w+")
+        # q1_f_qlist.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # for index, row in quarterly_list.iterrows():
+            # q1_f_qlist.write("\nCompanyCode: {} PAT: {} / SALES: {}  = EPS: {} \t ExtFlag: {}\n".format(str(row['CompanyCode']), str(row['PAT']),str(row['Sales']), str(row['EPS']),str(row['Ext_Flag'])))
+        # q1_f_qlist.close()
+
+        quarterly_eps_list = pd.concat([quarterly_eps_list, pd.DataFrame(columns = ['Q1 EPS Growth','Q1 Sales Growth', 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales','Q2 Sales Growth'])], sort=False)
+        
+        return quarterly_eps_list
+        
+        
+
+    def insert_quarterly_eps_resulsts(self, quarterly_eps_list, conn):
+        """Insert the quartely eps data into database,
+
+        Args:
+            quarterly_eps_lis = data of sales,expenses,EBITA, Q1, Q2 EPS and Sales growth,
+
+        Operation:
+            Exporting the data into QuarterlyEPSListExport.csv file and
+            Inserting the data into QuarterlyEPS Table.
+        """
+
+        cur = conn.cursor()
+        # filling NaN values with -1 in "Months" column 
+        quarterly_eps_list["Months"].fillna(-1, inplace=True)
+        quarterly_eps_list = quarterly_eps_list.astype({"Months": int})
+        quarterly_eps_list = quarterly_eps_list.astype({"Months": str})
+        quarterly_eps_list["Months"] = quarterly_eps_list["Months"].replace('-1', np.nan)
+
+        # filling NaN values with -1 in "Quarter" column 
+        quarterly_eps_list["Quarter"].fillna(-1, inplace=True)
+        quarterly_eps_list = quarterly_eps_list.astype({"Quarter": int})
+        quarterly_eps_list = quarterly_eps_list.astype({"Quarter": str})
+        quarterly_eps_list["Quarter"] = quarterly_eps_list["Quarter"].replace('-1', np.nan)
+        
+        # filling NaN values with -1 in "Ext_Flag" column 
+        quarterly_eps_list["Ext_Flag"].fillna(-1, inplace=True)
+        quarterly_eps_list = quarterly_eps_list.astype({"Ext_Flag": int})
+        quarterly_eps_list = quarterly_eps_list.astype({"Ext_Flag": str})
+        quarterly_eps_list["Ext_Flag"] = quarterly_eps_list["Ext_Flag"].replace('-1', np.nan)
+        
+        ###
+        # print("Duplicates:\n", [~quarterly_eps_list.duplicated(subset=['CompanyCode', 'YearEnding'])])
+        # quarterly_eps_list_duplicated = quarterly_eps_list.drop_duplicates(subset=['CompanyCode', 'YearEnding'])
+        # quarterly_eps_list_duplicated = quarterly_eps_list[quarterly_eps_list.duplicated()]
+        # print("Quaterly EPS:\n", quarterly_eps_list)
+        ###
+        quarterly_eps_list = quarterly_eps_list[['CompanyCode', 'YearEnding', 'Months', 'Quarter', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary',\
+        'OPM', 'Tax', 'PATRAW', 'PAT', 'Equity', 'Reserves', 'EPS', 'NPM', 'Ext_Flag', 'Q1 EPS Growth', 'Q1 Sales Growth', 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales', 'Q2 Sales Growth']]
+
+        exportfilename = "QuarterlyEPSListExport.csv"
+        exportfile = open(exportfilename,"w+")
+        quarterly_eps_list.to_csv(exportfile, header=True, index=False, lineterminator='\r')
+        exportfile.close()
+
+        copy_sql = """
+            COPY "public"."QuarterlyEPS" FROM stdin WITH CSV HEADER
+            DELIMITER as ','
+            """
+        with open(exportfilename, 'r') as f:
+            cur.copy_expert(sql=copy_sql, file=f)
+            conn.commit()
+            f.close()
+        os.remove(exportfilename)
+
+        updatequery = 'UPDATE public."QuarterlyEPS" SET "Ext_Flag" = true WHERE "Ext_Flag" IS NULL'
+                            
+        cur.execute(updatequery)
+        conn.commit()
+
+
+    
+    def insert_consolidated_quarterly_eps_results(self, quarterly_eps_list, conn):
+        """Insert the quartely eps data into database,
+
+        Args:
+            quarterly_eps_lis = data of sales,expenses,EBITA, Q1, Q2 EPS and Sales growth,
+
+        Operation:
+            Exporting the data into QuarterlyEPSListExport.csv file and
+            Inserting the data into QuarterlyEPS Table.
+        """
+
+        cur = conn.cursor()
+        # filling NaN values with -1 in "Months" column 
+        quarterly_eps_list["Months"].fillna(-1, inplace=True)
+        quarterly_eps_list = quarterly_eps_list.astype({"Months": int})
+        quarterly_eps_list = quarterly_eps_list.astype({"Months": str})
+        quarterly_eps_list["Months"] = quarterly_eps_list["Months"].replace('-1', np.nan)
+
+        # filling NaN values with -1 in "Quarter" column 
+        quarterly_eps_list["Quarter"].fillna(-1, inplace=True)
+        quarterly_eps_list = quarterly_eps_list.astype({"Quarter": int})
+        quarterly_eps_list = quarterly_eps_list.astype({"Quarter": str})
+        quarterly_eps_list["Quarter"] = quarterly_eps_list["Quarter"].replace('-1', np.nan)
+        
+        # filling NaN values with -1 in "Ext_Flag" column 
+        quarterly_eps_list["Ext_Flag"].fillna(-1, inplace=True)
+        quarterly_eps_list = quarterly_eps_list.astype({"Ext_Flag": int})
+        quarterly_eps_list = quarterly_eps_list.astype({"Ext_Flag": str})
+        quarterly_eps_list["Ext_Flag"] = quarterly_eps_list["Ext_Flag"].replace('-1', np.nan)
+        
+        # print("Quarterly eps",quarterly_eps_list["YearEnding"].head())
+
+        ###
+        # print("Duplicates:\n", [~quarterly_eps_list.duplicated(subset=['CompanyCode', 'YearEnding'])])
+        # quarterly_eps_list_duplicated = quarterly_eps_list.drop_duplicates(subset=['CompanyCode', 'YearEnding'])
+        # quarterly_eps_list_duplicated = quarterly_eps_list[quarterly_eps_list.duplicated()]
+        # print("Quaterly EPS:\n", quarterly_eps_list)
+        ###
+        quarterly_eps_list = quarterly_eps_list[['CompanyCode', 'YearEnding', 'Months', 'Quarter', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary',\
+        'OPM', 'Tax', 'PATRAW', 'PAT', 'Equity', 'Reserves', 'EPS', 'NPM', 'Ext_Flag', 'Q1 EPS Growth', 'Q1 Sales Growth', 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales', 'Q2 Sales Growth']]
+
+        exportfilename = "ConsolidatedQuarterlyEPSListExport.csv"
+        exportfile = open(exportfilename,"w+")
+        quarterly_eps_list.to_csv(exportfile, header=True, index=False, lineterminator='\r')
+        exportfile.close()
+
+        copy_sql = """
+            COPY "public"."ConsolidatedQuarterlyEPS" FROM stdin WITH CSV HEADER
+            DELIMITER as ','
+            """
+        with open(exportfilename, 'r') as f:
+            cur.copy_expert(sql=copy_sql, file=f)
+            conn.commit()
+            f.close()
+        os.remove(exportfilename)
+
+        updatequery = 'UPDATE public."QuarterlyEPS" SET "Ext_Flag" = true WHERE "Ext_Flag" IS NULL'
+                            
+        cur.execute(updatequery)
+        conn.commit()
+
+    def quarterly_one_eps_sales_growth(self, quarterly_eps_list, conn,today):
+        """Calculating the EPS and Sales Growth for current quarter,
+
+        Args:
+            quarterly_eps_list = quarterly eps list data of daily qtr eps,
+        
+        Operation:
+            Take the data from 'QuarterlyEPS' table for previous 4 quarter, 
+            and calculate the Q1 EPS Growth and Q1 Sales Growth
+            EPS Growth  = (eps_curr - eps_prev / abs(eps_prev) * 100)
+            Sales Growth = (((sales_current-sales_prev)/abs(sales_prev))*100),
+
+        Return:
+            EPS and Sales Growth of previous one year quarter.
+          """
+
+        qtr_one_start = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+        prev_year =  self.get_year_before_quarter(self.get_closest_quarter(today))
+        prev_2year =  self.get_year_before_quarter(prev_year).strftime("%Y-%m-%d")
+        prev_4year = self.get_four_years_before_quarter(today).strftime("%Y-%m-%d")
+
+        
+        sql = 'SELECT * FROM public."QuarterlyEPS" where "Ext_Flag" is not null and "YearEnding" >= \'' + prev_4year + '\';'
+        quarterly_eps_year_back = sqlio.read_sql_query(sql, con = conn)	
+        quarterly_eps_list['Sales'] =quarterly_eps_list['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        quarterly_eps_year_back['Sales'] = quarterly_eps_year_back['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        
+        print("Entering Q1 growht calc\n",prev_4year)
+        # quarterly_eps_year_back.to_csv("qEPSyrBack.csv", index=False)
+        #Order quarterly_eps_list by yearending asc
+        quarterly_eps_list = quarterly_eps_list.sort_values(by = 'YearEnding', ascending = True)
+        quarterly_eps_year_back.to_csv('quarterly_eps_year_back.csv', index=False)
+        quarterly_eps_list.to_csv('quarterly_eps_list.csv', index=False)
+
+        # self.export_table("Q1_quarterly_eps_list", quarterly_eps_list)
+        # self.export_table("Q1_quarterly_eps_year_back", quarterly_eps_year_back)
+
+        # q1_f_epsprev = open("zz_Q1_EPSPREV.txt".format(today), "w+")
+        # q1_f_epsprev.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # q1_f_salesprev = open("zz_Q1_SALESPREV.txt".format(today), "w+")
+        # q1_f_salesprev.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            prev_year_qtr = self.get_year_before_quarter(row['YearEnding'])
+            eps_current = row['EPS']
+
+            eps_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]["EPS"]
+            
+            if len(eps_prev_list.index) > 1:
+                    eps_prev = eps_prev_list[eps_prev_list.index[0]]
+            else:
+                eps_prev = eps_prev_list.item() if len(eps_prev_list.index) != 0 else np.nan
+            if (math.isnan(eps_prev)):
+                eps_prev_list = quarterly_eps_list.loc[(quarterly_eps_list["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_list["YearEnding"] == prev_year_qtr)]["EPS"]
+                if len(eps_prev_list.index) > 1:
+                    eps_prev = eps_prev_list[eps_prev_list.index[0]]
+                else:
+                    eps_prev = eps_prev_list.item() if len(eps_prev_list.index) != 0 else np.nan
+        
+                # calculating Q1 EPS Growth
+                quarterly_eps_list.loc[index, 'Q1 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            
+            # q1_f_epsprev.write("CompanyCode: {}\neps_current: {}\neps_prev: {}\nabs(eps_prev): {}\nlen(eps_prev_list.index): {}\n".format(row['CompanyCode'], eps_current, eps_prev, abs(eps_prev), len(eps_prev_list.index)))
+            quarterly_eps_list.loc[index, 'Q1 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            # q1_f_epsprev.write("Q1 EPS Growth: "+str(((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan)+"\n\n")
+
+
+            sales_current = row['Sales']
+
+            sales_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['Sales']
+            
+            if len(sales_prev_list.index) > 1:
+                    sales_prev = sales_prev_list[sales_prev_list.index[0]]
+            else:
+                sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else np.nan
+            
+            if (math.isnan(sales_prev)):
+
+                sales_prev_list = quarterly_eps_list.loc[(quarterly_eps_list["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_list["YearEnding"] == prev_year_qtr)]['Sales']
+                # sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else np.nan
+                if len(sales_prev_list.index) > 1:
+                    sales_prev = sales_prev_list[sales_prev_list.index[0]]
+                else:
+                    sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else np.nan
+                # calculating Q1Sales Growth
+                quarterly_eps_list.loc[index, 'Q1 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev  !=0 else np.nan
+
+            # q1_f_salesprev.write("CompanyCode: {}\nsales_current: {}\nsales_prev: {}\nlen(sales_prev_list.index): {}\n\n".format(row['CompanyCode'], sales_current, sales_prev, len(sales_prev_list.index)))
+            quarterly_eps_list.loc[index, 'Q1 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev  !=0 else np.nan
+
+        # q1_f_epsprev.close()
+        # q1_f_salesprev.close()
+        return quarterly_eps_list
+
+    def consolidated_quarterly_one_eps_sales_growth(self, quarterly_eps_list, conn, today):
+        """Calculating the EPS and Sales Growth for current quarter,
+
+        Args:
+            quarterly_eps_list = quarterly eps list data of daily qtr eps,
+        
+        Operation:
+            Take the data from 'QuarterlyEPS' table for previous 4 quarter, 
+            and calculate the Q1 EPS Growth and Q1 Sales Growth
+            EPS Growth  = (eps_curr - eps_prev / abs(eps_prev) * 100)
+            Sales Growth = (((sales_current-sales_prev)/abs(sales_prev))*100),
+
+        Return:
+            EPS and Sales Growth of previous one year quarter.
+          """
+
+        qtr_one_start = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+        prev_year =  self.get_year_before_quarter(self.get_closest_quarter(today))
+        prev_2year =  self.get_year_before_quarter(prev_year).strftime("%Y-%m-%d")
+        prev_4year = self.get_four_years_before_quarter(today).strftime("%Y-%m-%d")
+
+        
+        sql = 'SELECT * FROM public."ConsolidatedQuarterlyEPS" where "Ext_Flag" is not null and "YearEnding" >= \'' + prev_4year + '\';'
+        quarterly_eps_year_back = sqlio.read_sql_query(sql, con = conn)	
+        quarterly_eps_list['Sales'] =quarterly_eps_list['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        quarterly_eps_year_back['Sales'] = quarterly_eps_year_back['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        
+
+        #Order quarterly_eps_list by yearending asc
+        quarterly_eps_list = quarterly_eps_list.sort_values(by = 'YearEnding', ascending = True)
+
+        # self.export_table("Q1_quarterly_eps_list", quarterly_eps_list)
+        # self.export_table("Q1_quarterly_eps_year_back", quarterly_eps_year_back)
+
+        # q1_f_epsprev = open("zz_Consolidated_Q1_EPSPREV.txt".format(today), "w+")
+        # q1_f_epsprev.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # q1_f_salesprev = open("zz_Consolidated_Q1_SALESPREV.txt".format(today), "w+")
+        # q1_f_salesprev.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            prev_year_qtr = self.get_year_before_quarter(row['YearEnding'])
+            print("prev_year_qtr: ",prev_year_qtr)
+
+            eps_current = row['EPS']
+
+            eps_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]["EPS"]
+            
+            if len(eps_prev_list.index) > 1:
+                    eps_prev = eps_prev_list[eps_prev_list.index[0]]
+            else:
+                eps_prev = eps_prev_list.item() if len(eps_prev_list.index) != 0 else np.nan
+
+            if (math.isnan(eps_prev)):
+                eps_prev_list = quarterly_eps_list.loc[(quarterly_eps_list["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_list["YearEnding"] == prev_year_qtr)]["EPS"]
+                # eps_prev = eps_prev_list.item() if len(eps_prev_list.index) != 0 else np.nan
+                if len(eps_prev_list.index) > 1:
+                    eps_prev = eps_prev_list[eps_prev_list.index[0]]
+                else:
+                    eps_prev = eps_prev_list.item() if len(eps_prev_list.index) != 0 else np.nan
+                # calculating Q1 EPS Growth
+                quarterly_eps_list.loc[index, 'Q1 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            
+            # q1_f_epsprev.write("CompanyCode: {}\neps_current: {}\neps_prev: {}\nabs(eps_prev): {}\nlen(eps_prev_list.index): {}\n".format(row['CompanyCode'], eps_current, eps_prev, abs(eps_prev), len(eps_prev_list.index)))
+            quarterly_eps_list.loc[index, 'Q1 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            # q1_f_epsprev.write("Q1 EPS Growth: "+str(((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan)+"\n\n")
+
+
+            sales_current = row['Sales']
+
+            sales_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['Sales']
+            if len(sales_prev_list.index) > 1:
+                    sales_prev = sales_prev_list[sales_prev_list.index[0]]
+            else:
+                sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else np.nan
+
+            if (math.isnan(sales_prev)):
+
+                sales_prev_list = quarterly_eps_list.loc[(quarterly_eps_list["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_list["YearEnding"] == prev_year_qtr)]['Sales']
+                # sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else np.nan
+                if len(sales_prev_list.index) > 1:
+                    sales_prev = sales_prev_list[sales_prev_list.index[0]]
+                else:
+                    sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else np.nan
+                # calculating Q1Sales Growth
+                quarterly_eps_list.loc[index, 'Q1 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev  !=0 else np.nan
+
+            # q1_f_salesprev.write("CompanyCode: {}\nsales_current: {}\nsales_prev: {}\nlen(sales_prev_list.index): {}\n\n".format(row['CompanyCode'], sales_current, sales_prev, len(sales_prev_list.index)))
+            quarterly_eps_list.loc[index, 'Q1 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev  !=0 else np.nan
+
+        # q1_f_epsprev.close()
+        # q1_f_salesprev.close()
+        return quarterly_eps_list
+
+    def quarterly_two_eps_sales_growth(self, quarterly_eps_list, conn,today):
+        """Calculating the EPS and Sales Growth for current quarter,
+
+        Args:
+            quarterly_eps_list = quarterly eps list data of daily qtr eps,
+        
+        Operation:
+            Take the data from 'QuarterlyEPS' table for two year back quarter, 
+            and calculate the Q2 EPS Growth and Q2 Sales Growth
+            EPS Growth  = (eps_curr - eps_prev / abs(eps_prev) * 100)
+            Sales Growth = (((sales_current-sales_prev)/abs(sales_prev))*100),
+
+        Return:
+            EPS and Sales Growth of previous two year quarter.
+         """
+         
+        qtr_two_start = self.get_previous_quarter(today).strftime("%Y-%m-%d")
+        prev_year = self.get_year_before_quarter(self.get_previous_quarter(today))
+        prev_2year =  self.get_year_before_quarter(prev_year).strftime("%Y-%m-%d")
+        
+        sql = 'SELECT * FROM public."QuarterlyEPS" where "Ext_Flag" is not null and "YearEnding" >= \'' + prev_2year + '\' ;'
+        quarterly_eps_year_back = pd.read_sql_query(sql, con = conn)
+
+        quarterly_eps_list['Sales'] =quarterly_eps_list['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        quarterly_eps_year_back['Sales'] = quarterly_eps_year_back['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+
+        # self.export_table("Q2_quarterly_eps_list", quarterly_eps_list)
+        # self.export_table("Q2_quarterly_eps_year_back", quarterly_eps_year_back)
+
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            prev_qtr = self.get_previous_quarter(row['YearEnding'])
+            prev_year_qtr = self.get_year_before_quarter(prev_qtr)
+
+            #################
+            # calculating Q2 EPS Growth
+            eps_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            eps_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+                        
+            quarterly_eps_list.loc[index, 'Q2 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            quarterly_eps_list.loc[index , 'Q2 EPS'] = eps_current
+
+
+            #################
+            #  calculating Q2 sales Growth
+            sales_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan
+            sales_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan
+
+            quarterly_eps_list.loc[index, 'Q2 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev !=0 else np.nan
+            quarterly_eps_list.loc[index , 'Q2 Sales'] = sales_current
+
+            #################  
+
+
+        return quarterly_eps_list
+
+    def consolidated_quarterly_two_eps_sales_growth(self, quarterly_eps_list, conn,today):
+        """Calculating the EPS and Sales Growth for current quarter,
+
+        Args:
+            quarterly_eps_list = quarterly eps list data of daily qtr eps,
+        
+        Operation:
+            Take the data from 'QuarterlyEPS' table for two year back quarter, 
+            and calculate the Q2 EPS Growth and Q2 Sales Growth
+            EPS Growth  = (eps_curr - eps_prev / abs(eps_prev) * 100)
+            Sales Growth = (((sales_current-sales_prev)/abs(sales_prev))*100),
+
+        Return:
+            EPS and Sales Growth of previous two year quarter.
+         """
+        
+        qtr_two_start = self.get_previous_quarter(today).strftime("%Y-%m-%d")
+        prev_year = self.get_year_before_quarter(self.get_previous_quarter(today))
+        prev_2year =  self.get_year_before_quarter(prev_year).strftime("%Y-%m-%d")
+        
+        sql = 'SELECT * FROM public."ConsolidatedQuarterlyEPS" where "Ext_Flag" is not null and "YearEnding" >= \'' + prev_2year + '\' ;'
+        quarterly_eps_year_back = pd.read_sql_query(sql, con = conn)
+
+        quarterly_eps_list['Sales'] =quarterly_eps_list['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        quarterly_eps_year_back['Sales'] = quarterly_eps_year_back['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+
+        # self.export_table("Q2_quarterly_eps_list", quarterly_eps_list)
+        # self.export_table("Q2_quarterly_eps_year_back", quarterly_eps_year_back)
+
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            prev_qtr = self.get_previous_quarter(row['YearEnding'])
+            prev_year_qtr = self.get_year_before_quarter(prev_qtr)
+
+            #################
+            # calculating Q2 EPS Growth
+            eps_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            eps_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+            
+            
+            quarterly_eps_list.loc[index, 'Q2 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
+            quarterly_eps_list.loc[index , 'Q2 EPS'] = eps_current
+
+            
+
+            #################
+            #  calculating Q2 sales Growth
+            sales_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan
+            sales_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan
+
+
+            quarterly_eps_list.loc[index, 'Q2 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev !=0 else np.nan
+            quarterly_eps_list.loc[index , 'Q2 Sales'] = sales_current
+
+            #################  
+
+
+        return quarterly_eps_list
+
+    def ttm_quarterly_list(self, date, conn):
+        """ Generating the TTM data for newly available data in quarterly list,
+
+        Operation:
+            Take the data from QuarterlyEPS and TTM table for previous four year quarter
+            and fetch the data of 'Sales','Expenses','EBIDTA','Interest','Depreciation'
+            'Extraordinary','OPM','Tax','PAT', Equity','Reserves',' Months','Quarter',
+            and calculate the value for EPS and NPM
+            EPS' = (PAT/Equity)
+            NPM = ((PAT/Sales)*100),
+        
+        Return:
+            TTM data of EPS and NPM.
+        """
+            #TTM(Training twelve month )
+        
+        qtr_now = self.get_closest_quarter(date)
+        quarter_back = self.get_year_before_quarter(qtr_now)
+
+        prev_4year =  self.get_four_years_before_quarter(date)
+        
+        sql = 'SELECT QE.* from public."QuarterlyEPS" QE LEFT JOIN public."TTM" TTM on QE."CompanyCode"= TTM."CompanyCode" and TTM."YearEnding" = QE."YearEnding"\
+        WHERE QE."YearEnding" <= \'' + qtr_now.strftime("%Y-%m-%d") + '\' AND TTM."CompanyCode" is null AND QE."Ext_Flag" is not null;'
+        quarterly_eps_list = sqlio.read_sql_query(sql, con = conn)
+
+        qeps_back = 'SELECT * FROM public."QuarterlyEPS" WHERE "YearEnding" >= \''+prev_4year.strftime("%Y-%m-%d")+'\' ;'
+        qrtlylist = sqlio.read_sql_query(qeps_back, con = conn)
+
+        #print(sql)
+
+        qrtlylist[qrtlylist.columns[4:16]] = qrtlylist[qrtlylist.columns[4:16]].replace(r'[?$,]', '', regex=True).astype(np.float32)
+        
+        ttm_calc = pd.DataFrame(columns=['CompanyCode', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary', 'OPM', 'Tax',\
+        'PAT', 'Equity',  'Reserves', 'Months', 'Quarter', 'EPS', 'NPM'])
+        
+        ttm_calc = pd.merge(ttm_calc, quarterly_eps_list[['CompanyCode', 'YearEnding']], left_on='CompanyCode', right_on='CompanyCode', how='right')
+
+        #print(ttm_calc.columns)
+        # f_eps = open("_EPS_TTM_NULLDIG-{}.txt".format(date), "w+")
+        # f_eps.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # f_eps.write("\t\t FOR DATE: " + str(today) + "\n")
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            qtr_year_back = self.get_year_before_quarter(row["YearEnding"])
+
+            qrtlylist_year = qrtlylist[(qrtlylist["YearEnding"] <= row["YearEnding"]) & (qrtlylist["YearEnding"] > qtr_year_back)]
+
+            ttm_months = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Months']
+            ttm_sum_months = ttm_months.agg('sum')
+
+            ttm_quarters = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Quarter']
+            ttm_sum_quarters = len(ttm_quarters.index)
+
+            ttm_sales = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Sales']
+            ttm_sum_sales = ttm_sales.agg('sum')
+
+            ttm_expenses = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Expenses']
+            ttm_sum_expenses = ttm_expenses.agg('sum')
+
+            ttm_equity = qrtlylist_year.loc[(qrtlylist_year["CompanyCode"] == row['CompanyCode'])]
+            ttm_equity = ttm_equity.sort_values("YearEnding", ascending=False).copy()
+            ttm_equity = ttm_equity['Equity'].head(1).item()  if len(ttm_equity.index) >= 1 else np.nan
+            ttm_last_equity = ttm_equity
+
+            ttm_EBIDTA = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['EBIDTA']
+            ttm_sum_EBIDTA = ttm_EBIDTA.agg('sum')
+
+            ttm_interest = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Interest']
+            ttm_sum_interest = ttm_interest.agg('sum')
+
+            ttm_depreciation = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Depreciation']
+            ttm_sum_depreciation = ttm_depreciation.agg('sum')
+
+            ttm_extraordinary = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Extraordinary']
+            ttm_sum_extraordinary = ttm_extraordinary.agg('sum')
+
+            ttm_opm = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['OPM']
+            ttm_sum_opm = ttm_opm.agg('sum')
+
+            ttm_tax = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Tax']
+            ttm_sum_tax = ttm_tax.agg('sum')
+
+            ttm_pat = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['PAT']
+            ttm_sum_pat = ttm_pat.agg('sum')
+
+            ttm_reserves = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Reserves']
+            ttm_sum_reserves = ttm_reserves.agg('sum')
+
+            ttm_calc.loc[index, 'Sales'] = ttm_sum_sales
+            ttm_calc.loc[index, 'Expenses'] = ttm_sum_expenses
+            ttm_calc.loc[index, 'EBIDTA'] = ttm_sum_EBIDTA
+            ttm_calc.loc[index, 'Interest'] = ttm_sum_interest
+            ttm_calc.loc[index, 'Depreciation'] = ttm_sum_depreciation
+            ttm_calc.loc[index, 'Extraordinary'] = ttm_sum_extraordinary
+            ttm_calc.loc[index, 'OPM'] = ttm_sum_opm
+            ttm_calc.loc[index, 'Tax'] = ttm_sum_tax
+            ttm_calc.loc[index, 'PAT'] = ttm_sum_pat
+            ttm_calc.loc[index, 'Equity'] = ttm_last_equity
+            ttm_calc.loc[index, 'Reserves'] = ttm_sum_reserves
+            ttm_calc.loc[index, 'Months'] = ttm_sum_months		
+            ttm_calc.loc[index, 'Quarter'] = ttm_sum_quarters
+
+            # line = "{} : {} / {} if {} !=0 RESULT={}\n".format(str(row['CompanyCode']), str(ttm_calc.loc[index,'PAT']), str(ttm_calc.loc[index,'Equity']), str(ttm_calc.loc[index,'Equity']), str(ttm_calc.loc[index, 'PAT']/ttm_calc.loc[index, 'Equity']))
+            # f_eps.write(line)
+            ttm_calc.loc[index, 'EPS'] = ttm_calc.loc[index, 'PAT']/ttm_calc.loc[index, 'Equity'] if ttm_calc.loc[index, 'Equity'] != 0 else np.nan
+            ttm_calc.loc[index, 'NPM'] = ttm_calc.loc[index, 'PAT']/ttm_calc.loc[index, 'Sales'] * 100 if ttm_calc.loc[index, 'Sales'] != 0 else np.nan
+
+        # f_eps.close()
+
+        ttm_calc = ttm_calc[['CompanyCode', 'YearEnding', 'Months', 'Quarter','Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary', 'OPM', 'Tax',\
+        'PAT', 'Equity', 'Reserves', 'EPS', 'NPM']]
+
+        return ttm_calc
+
+    def consolidated_ttm_quarterly_list(self, date, conn):
+        """ Generating the TTM data for newly available data in quarterly list,
+
+        Operation:
+            Take the data from ConsolidatedQuarterlyEPS and TTM table for previous four year quarter
+            and fetch the data of 'Sales','Expenses','EBIDTA','Interest','Depreciation'
+            'Extraordinary','OPM','Tax','PAT', Equity','Reserves',' Months','Quarter',
+            and calculate the value for EPS and NPM
+            EPS' = (PAT/Equity)
+            NPM = ((PAT/Sales)*100),
+        
+        Return:
+            TTM data of EPS and NPM.
+        """
+            #TTM(Training twelve month )
+        
+        qtr_now = self.get_closest_quarter(date)
+        quarter_back = self.get_year_before_quarter(qtr_now)
+
+        prev_4year =  self.get_four_years_before_quarter(date)
+        
+        sql = 'SELECT QE.* from public."ConsolidatedQuarterlyEPS" QE LEFT JOIN public."ConsolidatedTTM" TTM on QE."CompanyCode"= TTM."CompanyCode" and TTM."YearEnding" = QE."YearEnding"\
+        WHERE QE."YearEnding" <= \'' + qtr_now.strftime("%Y-%m-%d") + '\' AND TTM."CompanyCode" is null AND QE."Ext_Flag" is not null;'
+        quarterly_eps_list = sqlio.read_sql_query(sql, con = conn)
+
+        qeps_back = 'SELECT * FROM public."ConsolidatedQuarterlyEPS" WHERE "YearEnding" >= \''+prev_4year.strftime("%Y-%m-%d")+'\' ;'
+        qrtlylist = sqlio.read_sql_query(qeps_back, con = conn)
+
+        #print(sql)
+
+        qrtlylist[qrtlylist.columns[4:16]] = qrtlylist[qrtlylist.columns[4:16]].replace(r'[?$,]', '', regex=True).astype(np.float32)
+        
+        ttm_calc = pd.DataFrame(columns=['CompanyCode', 'Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary', 'OPM', 'Tax',\
+        'PAT', 'Equity',  'Reserves', 'Months', 'Quarter', 'EPS', 'NPM'])
+        
+        ttm_calc = pd.merge(ttm_calc, quarterly_eps_list[['CompanyCode', 'YearEnding']], left_on='CompanyCode', right_on='CompanyCode', how='right')
+
+        #print(ttm_calc.columns)
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            qtr_year_back = self.get_year_before_quarter(row["YearEnding"])
+
+            qrtlylist_year = qrtlylist[(qrtlylist["YearEnding"] <= row["YearEnding"]) & (qrtlylist["YearEnding"] > qtr_year_back)]
+
+            ttm_months = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Months']
+            ttm_sum_months = ttm_months.agg('sum')
+
+            ttm_quarters = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Quarter']
+            ttm_sum_quarters = len(ttm_quarters.index)
+
+            ttm_sales = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Sales']
+            ttm_sum_sales = ttm_sales.agg('sum')
+
+            ttm_expenses = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Expenses']
+            ttm_sum_expenses = ttm_expenses.agg('sum')
+
+            ttm_equity = qrtlylist_year.loc[(qrtlylist_year["CompanyCode"] == row['CompanyCode'])]
+            ttm_equity = ttm_equity.sort_values("YearEnding", ascending=False).copy()
+            ttm_equity = ttm_equity['Equity'].head(1).item()  if len(ttm_equity.index) >= 1 else np.nan
+            ttm_last_equity = ttm_equity
+
+            ttm_EBIDTA = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['EBIDTA']
+            ttm_sum_EBIDTA = ttm_EBIDTA.agg('sum')
+
+            ttm_interest = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Interest']
+            ttm_sum_interest = ttm_interest.agg('sum')
+
+            ttm_depreciation = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Depreciation']
+            ttm_sum_depreciation = ttm_depreciation.agg('sum')
+
+            ttm_extraordinary = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Extraordinary']
+            ttm_sum_extraordinary = ttm_extraordinary.agg('sum')
+
+            ttm_opm = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['OPM']
+            ttm_sum_opm = ttm_opm.agg('sum')
+
+            ttm_tax = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Tax']
+            ttm_sum_tax = ttm_tax.agg('sum')
+
+            ttm_pat = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['PAT']
+            ttm_sum_pat = ttm_pat.agg('sum')
+
+            ttm_reserves = qrtlylist_year.loc[qrtlylist_year["CompanyCode"] == row['CompanyCode']]['Reserves']
+            ttm_sum_reserves = ttm_reserves.agg('sum')
+
+            ttm_calc.loc[index, 'Sales'] = ttm_sum_sales
+            ttm_calc.loc[index, 'Expenses'] = ttm_sum_expenses
+            ttm_calc.loc[index, 'EBIDTA'] = ttm_sum_EBIDTA
+            ttm_calc.loc[index, 'Interest'] = ttm_sum_interest
+            ttm_calc.loc[index, 'Depreciation'] = ttm_sum_depreciation
+            ttm_calc.loc[index, 'Extraordinary'] = ttm_sum_extraordinary
+            ttm_calc.loc[index, 'OPM'] = ttm_sum_opm
+            ttm_calc.loc[index, 'Tax'] = ttm_sum_tax
+            ttm_calc.loc[index, 'PAT'] = ttm_sum_pat
+            ttm_calc.loc[index, 'Equity'] = ttm_last_equity
+            ttm_calc.loc[index, 'Reserves'] = ttm_sum_reserves
+            ttm_calc.loc[index, 'Months'] = ttm_sum_months		
+            ttm_calc.loc[index, 'Quarter'] = ttm_sum_quarters
+
+            ttm_calc.loc[index, 'EPS'] = ttm_calc.loc[index, 'PAT']/ttm_calc.loc[index, 'Equity'] if ttm_calc.loc[index, 'Equity'] != 0 else np.nan
+            ttm_calc.loc[index, 'NPM'] = ttm_calc.loc[index, 'PAT']/ttm_calc.loc[index, 'Sales'] * 100 if ttm_calc.loc[index, 'Sales'] != 0 else np.nan
+
+        ttm_calc = ttm_calc[['CompanyCode', 'YearEnding', 'Months', 'Quarter','Sales', 'Expenses', 'EBIDTA', 'Interest', 'Depreciation', 'Extraordinary', 'OPM', 'Tax',\
+        'PAT', 'Equity', 'Reserves', 'EPS', 'NPM']]
+
+        return ttm_calc
+
+    def ttm_eps_sales_growth(self, quarterly_eps_list, today, conn):
+        """ Generating the data of TTM, sales and EPS Growth,
+
+            Args:
+                quarterly_eps_list = EPS rating data.
+
+            Operation:
+                Take the data from TTM table for five year back quarter
+                and calculate the 'EPS Growth' and 'Sales Growth' for 
+                previous one year(TTM1), previous two year(TTM2), and previous three year(TTM3) quarter
+                EPS Growth = (curr_eps - prev_eps / abs(prev_eps)*100)
+                Sales Growth = (sales_curr - sales_prev /abs(sales_prev)*100)
+            
+            Return:
+                value of EPS Growth, Sales Growth and EPS Rating.
+            """
+        # today = datetime.datetime.now() + datetime.timedelta(0)
+        # today = today.date()
+
+
+        four_year_back =  self.get_four_years_before_quarter(self.get_closest_quarter(today))
+        five_year_back = self.get_year_before_quarter(four_year_back).strftime("%Y-%m-%d")
+
+        sql = 'SELECT * from public."TTM" WHERE "YearEnding" >= \'' + five_year_back + '\' ;'
+        ttm_backyear = pd.read_sql_query(sql, con = conn)
+        # self.export_table(ttm_backyear, 'ttm_backyear')
+        # raise Exception("Break")
+        quarterly_eps_list = pd.concat([quarterly_eps_list, pd.DataFrame(columns = ['TTM1 EPS', 'TTM1 Sales', 'TTM2 EPS', 'TTM2 Sales',\
+        'TTM3 EPS', 'TTM3 Sales'])], sort=False)
+
+        # self.export_table("zzzzzzzz_TTM", quarterly_eps_list)
+        # self.export_table("zzzzzzzz_TTM_yearback", ttm_backyear)
+        
+        ttm_backyear['Sales'] = ttm_backyear['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+        ttm1_eps_prev_count = 0
+        ttm2_eps_prev_count = 0
+        ttm3_eps_prev_count = 0
+        ttm1_sales_prev_count = 0
+        ttm2_sales_prev_count = 0
+        ttm3_sales_prev_count = 0
+
+        # f_eps_ttm1 = open("_EPS_TTM1_NULL_DIG{}.txt".format(today), "w+")
+        # f_eps_ttm1.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # f_eps_ttm1.write("\t\t FOR DATE: " + str(today) + "\n")
+        
+        # f_eps_ttm2 = open("_EPS_TTM2_NULL_DIG{}.txt".format(today), "w+")
+        # f_eps_ttm2.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # f_eps_ttm2.write("\t\t FOR DATE: " + str(today) + "\n")
+        
+        # f_eps_ttm3 = open("_EPS_TTM3_NULL_DIG{}.txt".format(today), "w+")
+        # f_eps_ttm3.write("\n\n------------------------------------------------------------------------------------------------\n\n")
+        # f_eps_ttm3.write("\t\t FOR DATE: " + str(today) + "\n")
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            ##TTM1
+
+            prev_year_qtr = self.get_year_before_quarter(row['YearEnding'])
+            eps_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == row["YearEnding"])]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+
+            # ^^^^^
+
+            quarterly_eps_list.loc[index, 'TTM1 EPS'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev != 0 else np.nan
+            # f_eps_ttm1.write("\nCompanyCode: {} eps_prev: {} eps_current: {} result: {} lenoflists: {},{}".format(row['CompanyCode'], eps_prev, len(eps_current_list), quarterly_eps_list.loc[index, 'TTM1 EPS'], len(eps_prev_list.index), len(eps_current_list.index)))
+            
+            if(eps_prev == 0 or eps_prev == np.nan):
+                ttm1_eps_prev_count += 1
+                # print("EPS First value: {} Devider : {}".format((eps_current-eps_prev), abs(eps_prev))*100, row['CompanyCode'])
+
+            sales_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan	
+            # print("SALES PREV LIST: ", sales_prev, len(sales_prev_list))	
+            
+            sales_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == row["YearEnding"])]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan	
+            # print("SALES CURRENT LIST: ", sales_current, len(sales_current_list))	
+
+            quarterly_eps_list.loc[index, 'TTM1 Sales'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev != 0 else np.nan
+            if(sales_prev == 0 or sales_prev == np.nan):
+                ttm1_sales_prev_count += 1
+                # print("\t SALES First value: {} Devider : {}".format((eps_current-eps_prev), abs(eps_prev))*100, row['CompanyCode'])
+
+            ttm_eps_val = quarterly_eps_list.loc[index, 'TTM1 EPS'] 
+            ttm_eps_set_val = ( ((0.3)* ttm_eps_val) if not math.isnan(ttm_eps_val) else 0 ) 
+            quarterly_eps_list.loc[index, 'EPS Rating'] = quarterly_eps_list.loc[index, 'EPS Rating'] + ttm_eps_set_val
+
+            
+
+            ##TTM2
+
+            prev_two_year_qtr = self.get_two_years_before_quarter(row['YearEnding'])
+
+            eps_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+
+            quarterly_eps_list.loc[index, 'TTM2 EPS'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev != 0 else np.nan
+
+            # f_eps_ttm2.write("\nCompanyCode: {} eps_prev: {} eps_current: {} result: {} lenoflists: {},{}".format(row['CompanyCode'], eps_prev, eps_current, quarterly_eps_list.loc[index, 'TTM2 EPS'], len(eps_prev_list.index), len(eps_current_list.index)))
+
+            if(eps_prev == 0 or eps_prev == np.nan):
+                ttm2_eps_prev_count += 1
+
+            sales_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan		
+            
+            sales_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan		
+
+            quarterly_eps_list.loc[index, 'TTM2 Sales'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev != 0 else np.nan
+
+            if(sales_prev == 0 or sales_prev == np.nan):
+                ttm2_sales_prev_count += 1
+
+            ttm_eps_val = quarterly_eps_list.loc[index, 'TTM2 EPS'] 
+            ttm_eps_set_val = ( ((0.2)* ttm_eps_val) if not math.isnan(ttm_eps_val) else 0 ) 
+            quarterly_eps_list.loc[index, 'EPS Rating'] = quarterly_eps_list.loc[index, 'EPS Rating'] + ttm_eps_set_val
+
+            ##TTM3
+
+            prev_three_year_qtr = self.get_three_years_before_quarter(row['YearEnding'])
+
+            eps_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_three_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+
+            quarterly_eps_list.loc[index, 'TTM3 EPS'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev != 0 else np.nan
+            
+            # f_eps_ttm3.write("\nCompanyCode: {} eps_prev: {} eps_current: {} result: {} lenoflists: {},{}".format(row['CompanyCode'], eps_prev, eps_current, quarterly_eps_list.loc[index, 'TTM3 EPS'], len(eps_prev_list.index), len(eps_current_list.index)))
+
+            if(eps_prev == 0 or eps_prev == np.nan):
+                ttm3_eps_prev_count += 1
+
+            sales_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_three_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan		
+            
+            sales_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan		
+
+            quarterly_eps_list.loc[index, 'TTM3 Sales'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev != 0 else np.nan
+
+            if(sales_prev == 0 or sales_prev == np.nan):
+                ttm3_sales_prev_count += 1
+
+            ttm_eps_val = (0.1) * quarterly_eps_list.loc[index, 'TTM3 EPS'] 
+            ttm_eps_set_val = (ttm_eps_val if not math.isnan(ttm_eps_val)  else 0 ) 
+            quarterly_eps_list.loc[index, 'EPS Rating'] = quarterly_eps_list.loc[index, 'EPS Rating'] + ttm_eps_set_val
+
+        # f_eps_ttm1.write("\n\n------------------------------------------------------------------------------------------------")
+        # f_eps_ttm1.close()
+        # f_eps_ttm2.write("\n\n------------------------------------------------------------------------------------------------")
+        # f_eps_ttm2.close()
+        # f_eps_ttm3.write("\n\n------------------------------------------------------------------------------------------------")
+        # f_eps_ttm3.close()
+        # print("TTM1 EPS 0 VALUES: ", ttm1_eps_prev_count)
+        # print("TTM2 EPS 0 VALUES: ", ttm2_eps_prev_count)
+        # print("TTM3 EPS 0 VALUES: ", ttm3_eps_prev_count)	
+        # print("TTM1 SALES 0 VALUES: ", ttm1_sales_prev_count)
+        # print("TTM2 SALES 0 VALUES: ", ttm2_sales_prev_count)
+        # print("TTM3 SALES 0 VALUES: ", ttm3_sales_prev_count)
+        # raise Exception('Break for debugging')
+        return quarterly_eps_list
+
+    def consolidated_ttm_eps_sales_growth(self, quarterly_eps_list, conn):
+        """ Generating the data of TTM, sales and EPS Growth,
+
+            Args:
+                quarterly_eps_list = EPS rating data.
+
+            Operation:
+                Take the data from TTM table for five year back quarter
+                and calculate the 'EPS Growth' and 'Sales Growth' for 
+                previous one year(TTM1), previous two year(TTM2), and previous three year(TTM3) quarter
+                EPS Growth = (curr_eps - prev_eps / abs(prev_eps)*100)
+                Sales Growth = (sales_curr - sales_prev /abs(sales_prev)*100)
+            
+            Return:
+                value of EPS Growth, Sales Growth and EPS Rating.
+            """
+        today = datetime.datetime.now() + datetime.timedelta(0)
+        today = today.date()
+
+
+        four_year_back =  self.get_four_years_before_quarter(self.get_closest_quarter(today))
+        five_year_back = self.get_year_before_quarter(four_year_back).strftime("%Y-%m-%d")
+
+        sql = 'SELECT * from public."ConsolidatedTTM" WHERE "YearEnding" >= \'' + five_year_back + '\' ;'
+        ttm_backyear = pd.read_sql_query(sql, con = conn)
+
+        quarterly_eps_list = pd.concat([quarterly_eps_list, pd.DataFrame(columns = ['TTM1 EPS', 'TTM1 Sales', 'TTM2 EPS', 'TTM2 Sales',\
+        'TTM3 EPS', 'TTM3 Sales'])], sort=False)
+
+
+        ttm_backyear['Sales'] = ttm_backyear['Sales'].replace(r'[?$,]', '', regex=True).astype(float)
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            ##TTM1
+
+            prev_year_qtr = self.get_year_before_quarter(row['YearEnding'])
+
+            eps_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == row["YearEnding"])]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+
+            quarterly_eps_list.loc[index, 'TTM1 EPS'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev != 0 else np.nan
+
+            sales_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan		
+            
+            sales_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == row["YearEnding"])]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan		
+
+            quarterly_eps_list.loc[index, 'TTM1 Sales'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev != 0 else np.nan
+
+            ttm_eps_val = quarterly_eps_list.loc[index, 'TTM1 EPS'] 
+            ttm_eps_set_val = ( ((0.3)* ttm_eps_val) if not math.isnan(ttm_eps_val) else 0 ) 
+            quarterly_eps_list.loc[index, 'EPS Rating'] = quarterly_eps_list.loc[index, 'EPS Rating'] + ttm_eps_set_val
+
+            ##TTM2
+
+            prev_two_year_qtr = self.get_two_years_before_quarter(row['YearEnding'])
+
+            eps_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+
+            quarterly_eps_list.loc[index, 'TTM2 EPS'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev != 0 else np.nan
+
+            sales_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan		
+            
+            sales_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_year_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan		
+
+            quarterly_eps_list.loc[index, 'TTM2 Sales'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev != 0 else np.nan
+
+            ttm_eps_val = quarterly_eps_list.loc[index, 'TTM2 EPS'] 
+            ttm_eps_set_val = ( ((0.2)* ttm_eps_val) if not math.isnan(ttm_eps_val) else 0 ) 
+            quarterly_eps_list.loc[index, 'EPS Rating'] = quarterly_eps_list.loc[index, 'EPS Rating'] + ttm_eps_set_val
+
+            ##TTM3
+
+            prev_three_year_qtr = self.get_three_years_before_quarter(row['YearEnding'])
+
+            eps_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_three_year_qtr)]['EPS']
+            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
+            
+            eps_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['EPS']
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
+
+            quarterly_eps_list.loc[index, 'TTM3 EPS'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev != 0 else np.nan
+
+            sales_prev_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_three_year_qtr)]['Sales']
+            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan		
+            
+            sales_current_list = ttm_backyear.loc[(ttm_backyear["CompanyCode"]==row['CompanyCode']) & (ttm_backyear["YearEnding"] == prev_two_year_qtr)]['Sales']
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan		
+
+            quarterly_eps_list.loc[index, 'TTM3 Sales'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev != 0 else np.nan
+
+
+            ttm_eps_val = (0.1) * quarterly_eps_list.loc[index, 'TTM3 EPS'] 
+            ttm_eps_set_val = (ttm_eps_val if not math.isnan(ttm_eps_val)  else 0 ) 
+            quarterly_eps_list.loc[index, 'EPS Rating'] = quarterly_eps_list.loc[index, 'EPS Rating'] + ttm_eps_set_val
+            
+
+        return quarterly_eps_list
+
+    def get_all_ttm(self, quarterly_eps_list, conn, today):
+        """ Fetch the all data of TTM,
+
+        Args:
+            quartely_eps_list = quartely eps data of EPS and Sales growth,
+
+        Operation:
+            Fetching TTM quartely data. 
+        """
+
+        ttm = self.ttm_quarterly_list(today, conn)
+        self.export_table("TTM", ttm, today)
+
+        self.insert_ttm(ttm, conn)
+
+    def get_all_consolidated_ttm(self, quarterly_eps_list, conn,today):
+        """ Fetch the all data of TTM,
+
+        Args:
+            quartely_eps_list = quartely eps data of EPS and Sales growth,
+
+        Operation:
+            Fetching TTM quartely data. 
+        """
+
+        c_ttm = self.consolidated_ttm_quarterly_list(today, conn)
+
+        self.insert_c_ttm(c_ttm, conn)
+
+
+    def insert_ttm(self, ttm, conn):
+        """ Insert the TTM data into database
+
+        Args:
+            ttm = quartely EPS data,
+
+        Operation:
+            Export the data into ttm_export.csv,
+            and insert into TTM table.
+        """
+
+        cur = conn.cursor()
+
+        # Column Sclicing
+        ttm[ttm.columns[4:17]] = ttm[ttm.columns[4:17]].apply(pd.to_numeric, errors='coerce')
+
+        # ttm = ttm.round(2) # Change made on June 3rd (Recently)
+
+        exportfilename = "ttm_export.csv"
+        exportfile = open(exportfilename,"w+")
+        ttm.to_csv(exportfile, header=True, index=False, lineterminator='\r')
+        exportfile.close()
+            
+        copy_sql = """
+                COPY "public"."TTM" FROM stdin WITH CSV HEADER
+                DELIMITER as ','
+                """
+        with open(exportfilename, 'r') as f:
+            cur.copy_expert(sql=copy_sql, file=f)
+            conn.commit()
+            f.close()
+        # os.remove(exportfilename)
+
+    def insert_c_ttm(self, ttm, conn):
+        """ Insert the TTM data into database
+
+        Args:
+            ttm = quartely EPS data,
+
+        Operation:
+            Export the data into ttm_export.csv,
+            and insert into TTM table.
+        """
+
+        cur = conn.cursor()
+
+        # Column Sclicing
+        ttm[ttm.columns[4:17]] = ttm[ttm.columns[4:17]].apply(pd.to_numeric, errors='coerce')
+
+        # ttm = ttm.round(2) # Change made on June 3rd (Recently)
+
+        exportfilename = "consolidated_ttm_export.csv"
+        exportfile = open(exportfilename,"w+")
+        ttm.to_csv(exportfile, header=True, index=False, lineterminator='\r')
+        exportfile.close()
+            
+        copy_sql = """
+                COPY "public"."ConsolidatedTTM" FROM stdin WITH CSV HEADER
+                DELIMITER as ','
+                """
+        with open(exportfilename, 'r') as f:
+            cur.copy_expert(sql=copy_sql, file=f)
+            conn.commit()
+            f.close()
+        os.remove(exportfilename)
+
+    def get_ttm(self, conn):
+        """ Get the TTM data
+
+        Operation:
+            Fetch the data from TTM table for closest quarter,
+
+        Return:
+            TTM data for closest quarter.
+        """
+
+        today = datetime.datetime.now() + datetime.timedelta(0)
+        today = today.date()
+
+        sql = 'SELECT * FROM public."TTM" where "YearEnding" <=\''+self.get_closest_quarter(today).strftime("%Y-%m-%d")+'\';'
+        ttm = pd.read_sql_query(sql, con = conn)
+        return ttm 
+
+    def eps_rating(self, quarterly_eps_list,conn,today):
+        """ Calculating EPS Rating 
+
+        Args:
+            quartely_eps_list = merge data of BTTList and QuarterlyEPS table,
+
+        Operation:
+            Calculate the EPS Rating 
+            EPS Rating (Q1_EPS_Growth / Q2_EPS_Growth )
+            Q1_EPS_Growth ((0.2)* Q1 EPS Growth of quarterly eps data),
+            Q2_EPS_Growth ((0.2)* Q2 EPS Growth of quarterly eps data),
+            
+        Return:
+            Value of EPS Rating.
+         """
+
+        qtr_now = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+
+        for index, row in quarterly_eps_list.iterrows():
+
+            Q1_EPS_Growth = (0.2)*quarterly_eps_list.loc[index, 'Q1 EPS Growth']
+            Q2_EPS_Growth = (0.2)*quarterly_eps_list.loc[index, 'Q2 EPS Growth']
+
+            quarterly_eps_list.loc[index, 'EPS Rating'] = (Q1_EPS_Growth if not (math.isnan(Q1_EPS_Growth) or Q1_EPS_Growth == np.nan)  else 0) +\
+                                                        (Q2_EPS_Growth if not(math.isnan(Q2_EPS_Growth) or Q2_EPS_Growth == np.nan) else 0)
+
+        quarterly_eps_list = self.ttm_eps_sales_growth(quarterly_eps_list, today, conn)
+
+        return quarterly_eps_list
+
+        
+    def consolidated_eps_rating(self, c_quarterly_eps_list,conn,today):
+        """ Calculating EPS Rating 
+
+        Args:
+            quartely_eps_list = merge data of BTTList and QuarterlyEPS table,
+
+        Operation:
+            Calculate the EPS Rating 
+            EPS Rating (Q1_EPS_Growth / Q2_EPS_Growth )
+            Q1_EPS_Growth ((0.2)* Q1 EPS Growth of quarterly eps data),
+            Q2_EPS_Growth ((0.2)* Q2 EPS Growth of quarterly eps data),
+            
+        Return:
+            Value of EPS Rating.
+         """
+
+        today = datetime.datetime.now() + datetime.timedelta(0)
+        today = today.date()
+
+        qtr_now = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+
+        for index, row in c_quarterly_eps_list.iterrows():
+            if(c_quarterly_eps_list.loc[index, 'Q1 EPS Growth'] is not None):
+                Q1_EPS_Growth = (0.2)*c_quarterly_eps_list.loc[index, 'Q1 EPS Growth']
+            else:
+                Q1_EPS_Growth = np.nan
+            if(c_quarterly_eps_list.loc[index, 'Q2 EPS Growth'] is not None):
+                Q2_EPS_Growth = (0.2)*c_quarterly_eps_list.loc[index, 'Q2 EPS Growth']
+            else:
+                Q2_EPS_Growth = np.nan
+
+            c_quarterly_eps_list.loc[index, 'EPS Rating'] = (Q1_EPS_Growth if not (math.isnan(Q1_EPS_Growth) or Q1_EPS_Growth == np.nan)  else 0) +\
+                                                        (Q2_EPS_Growth if not(math.isnan(Q2_EPS_Growth) or Q2_EPS_Growth == np.nan) else 0)
+
+        c_quarterly_eps_list = self.consolidated_ttm_eps_sales_growth(c_quarterly_eps_list, conn)
+
+        return c_quarterly_eps_list
+
+    def stock_percentile_ranking(self, quarterly_eps_list):
+        """ Calculating Stock Percentile ranking
+        
+        Args:
+            quartely_eps_list = data of EPS Rating
+
+        Return:
+            EPS Stock Percentile Rating.
+        """
+
+        quarterly_eps_list['EPS Ranking'] = quarterly_eps_list['EPS Rating'].rank(ascending=False)
+        quarterly_eps_list['EPS Ranking'] = ((len(quarterly_eps_list.index)-quarterly_eps_list['EPS Ranking']+1)/len(quarterly_eps_list.index))*100
+
+        return quarterly_eps_list
+
+    def insert_EPS(self, name,table, conn, cur, today):
+        """ Insert EPS data into database
+
+        Args:
+            table = table with appropriate Column,
+
+        Operation:
+            insert the data into EPS Table.	
+        """
+
+        table["EPS Date"] = today.strftime("%Y-%m-%d")
+
+        table["BSECode"].fillna(-1, inplace=True)
+        table = table.astype({"BSECode": int})
+        table = table.astype({"BSECode": str})
+        table["BSECode"] = table["BSECode"].replace('-1', np.nan)
+
+        table["Months"].fillna(-1, inplace=True)
+        table = table.astype({"Months": int})
+        table = table.astype({"Months": str})
+        table["Months"] = table["Months"].replace('-1', np.nan)
+
+
+        table["Quarter"].fillna(-1, inplace=True)
+        table = table.astype({"Quarter": int})
+        table = table.astype({"Quarter": str})
+        table["Quarter"] = table["Quarter"].replace('-1', np.nan)
+
+        table = table.rename(columns = {'Sales' : 'Q1 Sales', 'EPS': 'Q1 EPS'})
+        # Creating table
+        table = table[['CompanyCode', 'NSECode', 'BSECode', 'CompanyName', 'ISIN', 'Months', 'Quarter', 'YearEnding', \
+        'Q1 EPS', 'Q1 EPS Growth' , 'Q1 Sales','Q1 Sales Growth' , 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales','Q2 Sales Growth', \
+        'TTM1 EPS', 'TTM1 Sales', 'TTM2 EPS', 'TTM2 Sales', 'TTM3 EPS', 'TTM3 Sales', 'NPM', 'EPS Rating', 'EPS Ranking', 'EPS Date']]
+
+        # print(table)
+
+        exportfilename = name+"_export.csv"
+        exportfile = open(exportfilename,"w+")
+
+        table.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+        exportfile.close()
+        # self.export_table("End_quarter_result", table)
+        # raise Exception("Break for testing")
+        copy_sql = """
+                COPY "Reports"."EPS" FROM stdin WITH CSV HEADER
+                DELIMITER as ','
+                """
+        with open(exportfilename, 'r') as f:
+            cur.copy_expert(sql=copy_sql, file=f)
+            conn.commit()
+            f.close()
+        os.remove(exportfilename)
+        
+
+    def insert_Consolidated_EPS(self, name,table, conn, cur, today):
+        """ Insert EPS data into database
+
+        Args:
+            table = table with appropriate Column,
+
+        Operation:
+            insert the data into EPS Table.	
+        """
+
+        table["EPS Date"] = today.strftime("%Y-%m-%d")
+
+        table["BSECode"].fillna(-1, inplace=True)
+        table = table.astype({"BSECode": int})
+        table = table.astype({"BSECode": str})
+        table["BSECode"] = table["BSECode"].replace('-1', np.nan)
+
+        table["Months"].fillna(-1, inplace=True)
+        table = table.astype({"Months": int})
+        table = table.astype({"Months": str})
+        table["Months"] = table["Months"].replace('-1', np.nan)
+
+
+        table["Quarter"].fillna(-1, inplace=True)
+        table = table.astype({"Quarter": int})
+        table = table.astype({"Quarter": str})
+        table["Quarter"] = table["Quarter"].replace('-1', np.nan)
+
+        table = table.rename(columns = {'Sales' : 'Q1 Sales', 'EPS': 'Q1 EPS'})
+        # Creating table
+        table = table[['CompanyCode', 'NSECode', 'BSECode', 'CompanyName', 'ISIN', 'Months', 'Quarter', 'YearEnding', \
+        'Q1 EPS', 'Q1 EPS Growth' , 'Q1 Sales','Q1 Sales Growth' , 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales','Q2 Sales Growth', \
+        'TTM1 EPS', 'TTM1 Sales', 'TTM2 EPS', 'TTM2 Sales', 'TTM3 EPS', 'TTM3 Sales', 'NPM', 'EPS Rating', 'EPS Ranking', 'EPS Date']]
+
+        # print(table)
+
+        exportfilename = name+"_export.csv"
+        exportfile = open(exportfilename,"w+")
+
+        table.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+        exportfile.close()
+
+        copy_sql = """
+                COPY "Reports"."Consolidated_EPS" FROM stdin WITH CSV HEADER
+                DELIMITER as ','
+                """
+        with open(exportfilename, 'r') as f:
+            cur.copy_expert(sql=copy_sql, file=f)
+            conn.commit()
+            f.close()
+
+    # def get_eps_list(self, conn,today):
+    #     """ Get EPS list
+
+    #     Operation:
+    #         Fetch the data from BTTList and QuarterlyEPS table for first of month,
+    #         Merge both the data based on CompanyCode,
+
+    #     Return:
+    #         Merge data of BTTList and QuarterlyEPS table.
+    #     """
+    
+    #     btt_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
+    #     next_month = today.month + 1 if today.month + 1 <= 12 else 1 
+    #     next_year = today.year if today.month + 1 <= 12 else today.year + 1
+    #     btt_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
+    #     today = datetime.date(today.year, today.month, today.day).strftime("%Y-%m-%d")
+    #     print("BTT Back: {} BTT Next: {}".format(btt_back, btt_next))
+    #     print("Today: ", today)
+    #     sql = """
+    #     SELECT BTT."CompanyName", BTT."ISIN", BTT."NSECode", BTT."BSECode", BTT."CompanyCode" AS "Company Code", QE.*
+    #     FROM public."BTTList" BTT
+    #     LEFT JOIN public."QuarterlyEPS" QE
+    #         ON QE."CompanyCode" = BTT."CompanyCode"
+    #         AND QE."YearEnding" = (
+    #             SELECT max("YearEnding")
+    #             FROM public."QuarterlyEPS" QE_Temp
+    #             WHERE QE_Temp."CompanyCode" = BTT."CompanyCode"
+    #                 AND QE_Temp."Ext_Flag" IS NOT NULL
+    #                 AND QE_Temp."YearEnding" <= %(today)s
+    #         )
+    #     WHERE "BTTDate" >= %(btt_back)s AND "BTTDate" < %(btt_next)s;
+    #     """
+
+    #     params = {
+    #         'today': today,
+    #         'btt_back': btt_back,
+    #         'btt_next': btt_next
+    #     }
+
+    #     btt_eps_merge_list = sqlio.read_sql_query(sql, con = conn, params=params)
+    #     btt_eps_merge_list = btt_eps_merge_list.drop(["CompanyCode"], axis = 1)
+    #     btt_eps_merge_list = btt_eps_merge_list.rename(columns = {'Company Code' : 'CompanyCode'})
+    #     # self.export_table("BTTMerge", btt_eps_merge_list)
+    #     # btt_eps_merge_list.drop_duplicates(subset =["CompanyCode", "YearEnding"],
+    #     #              keep = 'first', inplace = True)
+    #     return btt_eps_merge_list 
+
+
+    def get_eps_list(self, conn, today):
+        btt_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
+        next_month = today.month + 1 if today.month + 1 <= 12 else 1
+        next_year = today.year if today.month + 1 <= 12 else today.year + 1
+        btt_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
+        today = datetime.date(today.year, today.month, today.day).strftime("%Y-%m-%d")
+        
+        print("BTT Back: {} BTT Next: {}".format(btt_back, btt_next))
+        print("Today: ", today)
+        
+        # Fetch data from both tables
+        btt_df = sqlio.read_sql_query('SELECT * FROM public."BTTList" WHERE "BTTDate" >= %(btt_back)s AND "BTTDate" < %(btt_next)s;', con=conn, params={'btt_back': btt_back, 'btt_next': btt_next})
+        eps_df = sqlio.read_sql_query('SELECT * FROM public."QuarterlyEPS";', con=conn)  # Fetch all data from QuarterlyEPS table
+        
+        # Filter rows in eps_df based on conditions
+        eps_df = eps_df[eps_df['YearEnding'] == eps_df.groupby('CompanyCode')['YearEnding'].transform('max')]  # Filter based on max YearEnding
+        
+        # Merge DataFrames
+        merged_df = pd.merge(btt_df, eps_df, on="CompanyCode", how="left")
+
+        # Drop unnecessary columns
+        # merged_df = merged_df.drop(["CompanyCode"], axis=1)
+        # merged_df = merged_df.rename(columns={'Company Code': 'CompanyCode'})
+
+        return merged_df
+
+
+    def get_consolidated_eps_list(self, conn,today):
+        """ Get EPS list
+
+        Operation:
+            Fetch the data from BTTList and ConsolidatedQuarterlyEPS table for first of month,
+            Merge both the data based on CompanyCode,
+
+        Return:
+            Merge data of BTTList and ConsolidatedQuarterlyEPS table.
+        """
+
+        btt_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
+        next_month = today.month + 1 if today.month + 1 <= 12 else 1 
+        next_year = today.year if today.month + 1 <= 12 else today.year + 1
+        btt_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
+        # print("BTT Back: {} BTT Next: {}".format(btt_back, btt_next))
+        today = datetime.date(today.year, today.month, today.day).strftime("%Y-%m-%d")
+        sql = \
+        'SELECT BTT."CompanyName", BTT."ISIN", BTT."NSECode", BTT."BSECode",BTT."CompanyCode" AS "Company Code", QE.* \
+        FROM public."BTTList" BTT 	\
+        LEFT JOIN public."ConsolidatedQuarterlyEPS" QE \
+            ON QE."CompanyCode" = BTT."CompanyCode" \
+            AND QE."YearEnding"=\
+                (SELECT max("YearEnding") FROM public."ConsolidatedQuarterlyEPS" QE_Temp\
+                WHERE QE_Temp."CompanyCode"=BTT."CompanyCode" AND QE_Temp."Ext_Flag" is not null AND QE_Temp."YearEnding" <= \'' + today + '\')  \
+        WHERE "BTTDate">= \'' + btt_back + '\' and "BTTDate"< \'' + btt_next + '\'  ;'
+
+        btt_eps_merge_list = sqlio.read_sql_query(sql, con = conn)
+        btt_eps_merge_list = btt_eps_merge_list.drop(["CompanyCode"], axis = 1)
+        btt_eps_merge_list = btt_eps_merge_list.rename(columns = {'Company Code' : 'CompanyCode'})
+        # btt_eps_merge_list.drop_duplicates(subset =["CompanyCode", "YearEnding"],
+        #              keep = 'first', inplace = True)
+        return btt_eps_merge_list 
+
+    def get_eps_list_history(self, conn):
+        """Fetch EPS history
+
+        Operation:
+            Take the data from BTTList and  QuarterlyEPS table for closest quarter,
+
+        Return:
+            Merge data of BTTList and QuarterlyEPS.
+        """
+
+        today = datetime.datetime.now() + datetime.timedelta(0)
+        today = today.date()
+
+        btt_back = datetime.date(2018, 12, 1).strftime("%Y-%m-%d")
+        btt_next = datetime.date(2019, 1, 1).strftime("%Y-%m-%d")
+
+        gen_qtr = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+
+        sql = \
+        'SELECT BTT."CompanyName", BTT."ISIN", BTT."NSECode", BTT."BSECode",BTT."CompanyCode" AS "Company Code", QE.* \
+        FROM public."BTTList" BTT 	\
+        LEFT JOIN public."QuarterlyEPS" QE \
+            ON QE."CompanyCode" = BTT."CompanyCode" \
+            AND QE."YearEnding"=\
+                (SELECT max("YearEnding") FROM public."QuarterlyEPS" QE_Temp\
+                WHERE QE_Temp."CompanyCode"=BTT."CompanyCode" and QE_Temp."YearEnding" <=\''+gen_qtr+'\')  \
+        WHERE "BTTDate">= \'' + btt_back + '\' and "BTTDate"< \'' + btt_next + '\' ;'
+
+        btt_eps_merge_list = sqlio.read_sql_query(sql, con = conn)
+        btt_eps_merge_list = btt_eps_merge_list.drop(["CompanyCode"], axis = 1)
+        btt_eps_merge_list = btt_eps_merge_list.rename(columns = {'Company Code' : 'CompanyCode'})
+
+        return btt_eps_merge_list 	
+
+    def ttm_history_insert(self,conn):
+        """fetch the TTM history of one quarter"""
+
+        # conn = DB_Helper.db_connect()
+        # cur = conn.cursor()
+
+        start_date = datetime.date(2019, 3, 1)
+        end_date = datetime.date(2019, 4, 1)
+
+        curr_date = self.get_closest_quarter(end_date)
+
+        while(curr_date >= start_date):
+            
+            #Change Dates before executing
+            # quarterly_eps_history_insert(conn)
+            # inset_ttm_history(conn)
+            
+            curr_date = self.get_previous_quarter(curr_date)
+        
+        conn.close()
+
+    def today_quarterly_eps(self, conn, cur,today):
+        """ generate the data for today quartely EPS,
+
+        Operation:
+            fetch the data of EPS list, Q1, Q2 Eps and Sales growth and TTM data,
+            to get today quarterly EPS data.
+        """ 
+    
+        print("\nCompiling quarterly EPS list", flush = True)
+        quarterly_eps_list = self.set_daily_qtr_eps(conn,today)
+        self.export_table("1.1.0_set_daily_qtr", quarterly_eps_list, today)
+
+        # print("quarterly_eps_list.empty", quarterly_eps_list.empty, len(quarterly_eps_list), flush = True)
+
+        qtr_one_start = self.get_closest_quarter(today).strftime("%Y-%m-%d")
+        prev_year =  self.get_year_before_quarter(self.get_closest_quarter(today))
+        prev_2year =  self.get_year_before_quarter(prev_year).strftime("%Y-%m-%d")
+        prev_4year = self.get_four_years_before_quarter(today).strftime("%Y-%m-%d")
+
+        print("prev_4year: ", prev_4year)
+
+        if (quarterly_eps_list.empty):
+            print("Calculating quarterly one EPS Sales growth", flush = True)
+            quarterly_eps_list = self.quarterly_one_eps_sales_growth(quarterly_eps_list, conn, today)
+            self.export_table("1.1.1_Q1_final_quarterly_eps_list", quarterly_eps_list,today)
+            print("Calculating quarterly two EPS Sales growth", flush = True)
+            quarterly_eps_list = self.quarterly_two_eps_sales_growth(quarterly_eps_list, conn, today)
+            self.export_table("1.1.2_Q2_final_quarterly_eps_list", quarterly_eps_list, today)
+
+            print("Inserting Quarterly EPS Results", flush = True)
+            self.insert_quarterly_eps_resulsts(quarterly_eps_list, conn)
+
+            print("Calculating TTM values", flush = True)
+            self.get_all_ttm(quarterly_eps_list, conn,today)
+        
+        else:
+            print("Data not present for quarterly EPS list for ....Date: "+str(today))
+
+        
+    def consolidated_today_quarterly_eps(self, conn, cur,today):
+        """ generate the data for today quartely EPS,
+
+        Operation:
+            fetch the data of EPS list, Q1, Q2 Eps and Sales growth and TTM data,
+            to get today quarterly EPS data.
+        """ 
+    
+        print("\nCompiling quarterly EPS list", flush = True)
+        # quarterly_eps_list = self.set_daily_qtr_eps(conn,today)
+        c_quarterly_eps_list = self.consolidated_set_daily_qtr_eps(conn,today) # step 1
+        self.export_table("1.2.1_consolidated_set_daily_qtr", c_quarterly_eps_list, today)
+        # print("c_quarterly_eps_list.empty", c_quarterly_eps_list.empty, len(c_quarterly_eps_list), flush = True)
+        if not(c_quarterly_eps_list.empty):
+            print("Calculating quarterly one EPS Sales growth", flush = True)
+            # quarterly_eps_list = self.quarterly_one_eps_sales_growth(quarterly_eps_list, conn, today)
+            c_quarterly_eps_list = self.consolidated_quarterly_one_eps_sales_growth(c_quarterly_eps_list, conn,today)
+            self.export_table("1.2.2_consolidated_quaterly_one_eps_sales_growth", c_quarterly_eps_list, today)
+            print("Calculating quarterly two EPS Sales growth", flush = True)
+            # quarterly_eps_list = self.quarterly_two_eps_sales_growth(quarterly_eps_list, conn, today)
+            c_quarterly_eps_list = self.consolidated_quarterly_two_eps_sales_growth(c_quarterly_eps_list, conn, today)
+            self.export_table("1.2.3_consolidated_quaterly_two_eps_sales_growth", c_quarterly_eps_list, today)         
+            print("Inserting Quarterly EPS Results", flush = True)
+            self.insert_consolidated_quarterly_eps_results(c_quarterly_eps_list, conn)
+            # Have to insert for consolidated too? Yup, just did..
+
+            print("Calculating TTM values", flush = True)
+            self.get_all_consolidated_ttm(c_quarterly_eps_list, conn,today) # Consolidated flow added inside
+            self.export_table("1.2.4_consolidated_ttm", c_quarterly_eps_list, today)
+        else:
+            print("Data not present for quarterly EPS list for ....Date: "+str(today))
+
+
+    def history_eps_report(self, date, conn, cur):
+        """Generate the history for EPS report
+
+        Operation:
+            Fetch the data of EPS Rating, Stock Percentile Ranking and EPS data,
+            and generate history for EPS report.  
+        """
+
+        today = date
+
+        print("Inserting History EPS Report for Qtr: "+str(today))
+
+        quarterly_eps_list = self.get_eps_list_history(conn)
+
+        if not(quarterly_eps_list.empty):
+
+
+            quarterly_eps_list_null =  quarterly_eps_list[quarterly_eps_list['YearEnding'].isnull()]
+            quarterly_eps_list =  quarterly_eps_list[quarterly_eps_list['YearEnding'].notnull()]
+
+            print("Calculating EPS Rating")
+            quarterly_eps_list = self.eps_rating(quarterly_eps_list, conn,today)
+
+            print("Merging Null Set Back into list")
+            quarterly_eps_list = pd.concat([quarterly_eps_list, quarterly_eps_list_null], sort=True)
+
+            print("Calculating Stock Percentile Ranking")
+            quarterly_eps_list = self.stock_percentile_ranking(quarterly_eps_list)
+
+            print("Inserting into EPS..")
+            self.insert_EPS("EPS_" + today.strftime("%Y-%m-%d"), quarterly_eps_list, conn, cur,today)
+
+            # conn.close()
+        
+        else:
+            print("EPS Don't have for this date.")
+
+    def current_eps_report(self, conn,cur,today):
+        """Fetch the eps report for current date
+        
+        Operation:
+            Fetch the data of EPS Rating, Stock Percentile Ranking and EPS data,
+            and Generating EPS Report for current date.
+        """
+
+        print("Initiating QuarterlyEPS & TTM Process.... Date: "+str(today), flush = True)
+        self.today_quarterly_eps(conn, cur, today)
+        if(today >= datetime.date(2021, 4, 1)):
+            self.consolidated_today_quarterly_eps(conn, cur, today) 
+        
+        quarterly_eps_list = self.get_eps_list(conn,today)
+        self.export_table("2_eps_list", quarterly_eps_list, today)
+        # quarterly_eps_list = quarterly_eps_list[quarterly_eps_list['CompanyCode'] == 11600033]
+        
+        if(today >= datetime.date(2021, 4, 1)):
+            c_quarterly_eps_list = self.get_consolidated_eps_list(conn, today)        #1
+            self.export_table("3.1_consolidated_eps_list", c_quarterly_eps_list, today)
+        if not(quarterly_eps_list.empty):
+
+            quarterly_eps_list_null =  quarterly_eps_list[quarterly_eps_list['YearEnding'].isnull()]
+            quarterly_eps_list =  quarterly_eps_list[quarterly_eps_list['YearEnding'].notnull()]
+
+            print("Calculating EPS Rating", flush = True)
+            quarterly_eps_list = self.eps_rating(quarterly_eps_list, conn,today)		#2
+            self.export_table("3.2_eps_rating", quarterly_eps_list, today)
+            if(today >= datetime.date(2021, 4, 1)):
+                c_quarterly_eps_list_null =  c_quarterly_eps_list[c_quarterly_eps_list['YearEnding'].isnull()]
+                c_quarterly_eps_list =  c_quarterly_eps_list[c_quarterly_eps_list['YearEnding'].notnull()]
+
+                print("Calculating Consolidated EPS Rating", flush = True)
+                c_quarterly_eps_list = self.consolidated_eps_rating(c_quarterly_eps_list, conn,today)
+                self.export_table("3.2.1_consolidated_eps_rating", c_quarterly_eps_list, today)
+                # The consolidated EPS List will decide which list will be taken into account, based on the TTM3 value
+                number_of_consolidated = 0
+                for index, row in c_quarterly_eps_list.iterrows():
+                    # print("CompanyName: {} TTM3 EPS: {} TTM3 Sales: {}\n\n".format(row["CompanyName"], row["TTM3 EPS"], row["TTM3 Sales"]))
+                    if(str(row["TTM3 EPS"]) != 'nan'):
+                        quarterly_eps_list.drop(quarterly_eps_list.loc[quarterly_eps_list['CompanyCode']==row['CompanyCode']].index, inplace=True)
+                        row['CompanyName'] += " (C)"
+                        # quarterly_eps_list.loc[len(quarterly_eps_list.index)] = row
+                        try:
+                            quarterly_eps_list = quarterly_eps_list.append(row, ignore_index = True)
+                        except AttributeError:
+                            quarterly_eps_list = pd.concat([quarterly_eps_list, pd.DataFrame(row).transpose()], ignore_index=True)
+                        number_of_consolidated += 1
+                print("Number of entries from consolidated data: ", number_of_consolidated)
+
+
+                # f.write("\n\n------------------------------------------------------------------------------------------------")
+                # f.close()
+
+            print("Merging Null Set Back into list", flush = True)
+            quarterly_eps_list = pd.concat([quarterly_eps_list, quarterly_eps_list_null], sort=True)
+            print("Calculating Stock Percentile Ranking", flush = True)
+            self.export_table("3.3_stock_percentile_ranking", quarterly_eps_list, today)
+            quarterly_eps_list = self.stock_percentile_ranking(quarterly_eps_list)
+            self.export_table("3.4_stock_percentile_ranking", quarterly_eps_list, today)
+            print("Inserting into EPS..", flush = True)
+            # self.export_table("End_quarter_result", quarterly_eps_list)
+            # raise Exception("Break for testing")
+            self.insert_EPS("EPS_" + today.strftime("%Y-%m-%d"), quarterly_eps_list, conn, cur,today)
+        
+        else:
+            print("Data not present for QuarterlyEPS & TTM Process.... Date: "+str(today))
+    
+    def export_table(self, name,table, today):
+        exportfilename = "outputs/data/eps/"+name+str(today)+".csv"
+        exportfile = open(exportfilename,"w")
+
+        table.to_csv(exportfile, header=True, index=False, float_format="%2f", lineterminator='\r')
+        exportfile.close()
+
+
+    def Generate_History_Reports(self):
+        """Generate History Reports For EPS """
+
+        start_date = datetime.date(2015, 1, 1)
+        end_date = datetime.date(2015, 3, 31)
+
+        curr_date = self.get_closest_quarter(end_date)
+
+        while(curr_date >= start_date):
+            self.history_eps_report(curr_date)
+            curr_date = self.get_previous_quarter(curr_date)
+
+
+    def Generate_Daily_Report(self, curr_date, conn, cur):
+        """Generating EPS reports"""
+
+        
+        today = curr_date
+        
+        self.current_eps_report(conn,cur, today)
+
+
+
+
+

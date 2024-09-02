@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:wght@100;400&display=swap"
+      rel="stylesheet"
+    />
+    <title>Flask SPA</title>
+    <style>
+      body {
+        font-family: "Lato", sans-serif;
+        background-color: white;
+      }
+      form {
+        width: 60%;
+        margin: 50px auto;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background-color: white;
+        color: #000;
+      }
+
+      select:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      input:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+      input:hover {
+        font-family: "Lato", sans-serif;
+      }
+      .button {
+        width: 30%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background-color: #1b9cfc;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .button:hover {
+        background-color: #00bcff;
+      }
+
+      #result {
+        margin-top: 20px;
+      }
+      .menu-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      .date-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      select {
+        width: 60%;
+      }
+      .flex-center {
+        display: flex;
+        justify-content: center;
+      }
+      .zero-margin {
+        margin: 0 0 0 0;
+      }
+      .margin-bottom {
+        margin-bottom: 45px;
+      }
+      .width-30 {
+        width: 40%;
+      }
+      .width-25 {
+        width: 37.5%;
+      }
+      .font {
+        font-family: "Lato", sans-serif;
+      }
+      .inline-flex {
+        display: inline-flex;
+      }
+      .space-around {
+        justify-content: space-around;
+      }
+      .width-100 {
+        width: 100%;
+      }
+      .space-between {
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <form method="POST" action="/process">
+      <div class="flex-center">
+        <img
+          src="../static/bravisa-logo.jpg"
+          alt="Bravisa Logo"
+          style="margin-bottom: 20px; margin-top: 10px"
+          width="300"
+          height="100"
+        />
+      </div>
+
+      <div class="inline-flex width-100 space-around">
+        <label class="flex" for="start_date">From:</label>
+        <label class="flex" for="end_date">To:</label>
+      </div>
+      <div class="date-container margin-bottom">
+        <input
+          class="width-25 font"
+          type="date"
+          id="start_date"
+          name="start_date"
+        />
+
+        <input
+          class="width-25 font"
+          type="date"
+          id="end_date"
+          name="end_date"
+        />
+      </div>
+      <div class="menu-container font margin-bottom">
+        <select class="width-30 font" id="main_menu" name="main_menu">
+          <option value="insert_data">Insert Data</option>
+          <option value="generate_report">Generate Report</option>
+          <option value="insert_generate">Insert and Generate Report</option>
+          <option value="delete_report">Delete Report</option>
+          <option value="download">Download CSV</option>
+        </select>
+
+        <select class="width-30 font" id="submenu" name="submenu">
+          <!-- <option value="sub1">Submenu 1</option> -->
+        </select>
+      </div>
+      <div class="flex-center margin-bottom" >
+        <label style="margin-top: 5px;margin-bottom: 5px;" for="is_holiday">Holiday:</label>
+        <input
+          style="width: 40px"
+          type="checkbox"
+          id="is_holiday"
+          name="is_holiday"
+          value="true"
+        />
+      </div>
+      <div class="flex-center">
+        <input
+          id="submit-button"
+          class="button font"
+          type="submit"
+          value="Submit"
+        />
+      </div>
+      <div class="flex-center" id="result"></div>
+    </form>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+      // Define submenus for each main menu option
+      var submenus = {
+        delete_report: [
+          "Traditional Delete",
+          "EPS",
+          "Standalone EPS",
+          "Consolidated EPS",
+          "PRS",
+          "SMR",
+          "IRS",
+          "FRS-NavRank",
+          "CombinedRS",
+          "BTT",
+        ],
+        download: [
+          "All Reports",
+          "EPS",
+          "Standalone EPS",
+          "Consolidated EPS",
+          "PRS",
+          "SMR",
+          "IRS",
+          "FRS-NavRank",
+          "CombinedRS",
+        ],
+      };
+
+      // Add an event listener to the "Main Menu" select element
+      $("#main_menu").change(function () {
+        // Get the selected value of the "Main Menu"
+        var mainMenuValue = $(this).val();
+
+        // Get the corresponding submenus based on the selected "Main Menu"
+        var submenuOptions = submenus[mainMenuValue];
+
+        // Update the "Submenu" select element
+        $("#submenu").empty();
+        for (var i = 0; i < submenuOptions.length; i++) {
+          $("#submenu").append(
+            $("<option>", {
+              // value: "sub" + (i + 1),
+              value: submenuOptions[i],
+              text: submenuOptions[i],
+            })
+          );
+        }
+      });
+
+      $("#submit-button").click(function (event) {
+        // Check if the date fields are empty
+        if ($("#start_date").val() === "" || $("#end_date").val() === "") {
+          event.preventDefault(); // Prevent form submission
+          alert("Please enter both start and end dates before submitting.");
+        }
+      });
+
+      // ... (your existing script)
+      $("form").submit(function (event) {
+    event.preventDefault();
+
+    var isHoliday = $("#is_holiday").prop("checked");
+
+    // Append the "is_holiday" value to the form data
+    $("form").append(
+        '<input type="hidden" name="is_holiday" value="' + isHoliday + '">'
+    );
+
+    // Display "Generating" message or loading spinner
+    $("#result").text("Generating...").css("color", "blue");
+
+    $.ajax({
+        type: "POST",
+        url: "/process",
+        data: $("form").serialize(),
+        success: function (response) {
+            // Update the message to "Completed" once processing is finished
+            $("#result")
+                .text("Completed: " + response.message)
+                .css("color", "green");
+        },
+        error: function (error) {
+            console.error("Error:", error).css("color", "red");
+            // Optionally handle error case and display an appropriate message
+        },
+    });
+});
+
+    </script>
+  </body>
+</html>

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:wght@100;400&display=swap"
+      rel="stylesheet"
+    />
+    <title>Flask SPA</title>
+    <style>
+      body {
+        font-family: "Lato", sans-serif;
+        background-color: white;
+      }
+      form {
+        width: 60%;
+        margin: 50px auto;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background-color: white;
+        color: #000;
+      }
+
+      select:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      input:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+      input:hover {
+        font-family: "Lato", sans-serif;
+      }
+      .button {
+        width: 30%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background-color: #1b9cfc;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .button:hover {
+        background-color: #00bcff;
+      }
+
+      #result {
+        margin-top: 20px;
+      }
+      .menu-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      .date-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      select {
+        width: 60%;
+      }
+      .flex-center {
+        display: flex;
+        justify-content: center;
+      }
+      .zero-margin {
+        margin: 0 0 0 0;
+      }
+      .margin-bottom {
+        margin-bottom: 45px;
+      }
+      .margin-bottom-25 {
+        margin-bottom: 10px;
+      }
+      .width-30 {
+        width: 40%;
+      }
+      .width-25 {
+        width: 37.5%;
+      }
+      .font {
+        font-family: "Lato", sans-serif;
+      }
+      .inline-flex {
+        display: inline-flex;
+      }
+      .space-around {
+        justify-content: space-around;
+      }
+      .width-100 {
+        width: 100%;
+      }
+      a {
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <form method="POST" action="/add_industry_mapping">
+      <!-- <h2 class="flex-center zero-margin margin-bottom">BRAVISA</h2> -->
+      <div class="flex-center">
+        <img
+          src="../static/bravisa-logo.jpg"
+          alt="Bravisa Logo"
+          style="margin-bottom: 20px; margin-top: 10px"
+          width="300"
+          height="100"
+        />
+      </div>
+      <!-- button to switch between the two pages -->
+      <div
+        class="inline-flex margin-bottom"
+        style="border-top: 1px solid #ccc; width: 100%"
+      >
+        <a
+          href="/"
+          class="font button"
+          style="
+            border-top-left-radius: 0px;
+            border-top-right-radius: 0px;
+            width: 30%;
+          "
+          >Generate report</a
+        >
+        <a
+          href="/industrymap"
+          class="font button"
+          style="background-color: white; color: #000; width: 40%"
+          >Industry Mapping</a
+        >
+      </div>
+
+      <div class="flex-center"></div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">IndustryCode:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="IndustryCode"
+          name="IndustryCode"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">IndustryName:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="IndustryName"
+          name="IndustryName"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">Industry:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="Industry"
+          name="Industry"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">Code:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="Code"
+          name="Code"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">SubSector:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="SubSector"
+          name="SubSector"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">SubSectorCode:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="SubSectorCode"
+          name="SubSectorCode"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">Sector:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="Sector"
+          name="Sector"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">SectorCode:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="SectorCode"
+          name="SectorCode"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom-25">
+        <label class="width-30 font" for="field1">SubIndustry:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="SubIndustry"
+          name="SubIndustry"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center margin-bottom">
+        <label class="width-30 font" for="field1">SubIndustryCode:</label>
+        <input
+          class="width-30 font"
+          type="text"
+          id="SubIndustryCode"
+          name="SubIndustryCode"
+          placeholder=""
+        />
+      </div>
+      <div class="flex-center">
+        <input
+          id="submit-button"
+          class="button font"
+          style="margin-bottom: 15px"
+          type="submit"
+          value="Submit"
+        />
+      </div>
+    <div id="result"></div>
+  </form>
+
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+      // Ensure all input fields are filled
+      $("form").submit(function (event) {
+        // Check if any of the input fields are empty
+        let emptyFields = false;
+        $("input").each(function () {
+          if ($(this).val() === "") {
+            emptyFields = true;
+            return false; // Exit loop
+          }
+        });
+
+        if (emptyFields) {
+          event.preventDefault(); // Prevent form submission
+          alert("Please fill in all fields before submitting.");
+          return;
+        }
+
+        // If all fields are filled, serialize and send the form data via AJAX
+        event.preventDefault();
+        $.ajax({
+          type: "POST",
+          url: "/add_industry_mapping",
+          data: $("form").serialize(),
+          success: function (response) {
+            $("#result").text(response.message).css("color", "green");
+
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+            $("#result").text("An error occurred: " + textStatus);
+          },
+        });
+      });
+    </script>
+  </body>
+</html>
