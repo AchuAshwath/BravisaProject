@@ -30,5 +30,14 @@ Before you begin, ensure you have the following installed on your system:
 ### Step 1: Clone the Repository
 First, clone the project repository to your local machine using Git.
 ```bash
-git clone https://github.com/yourusername/yourproject.git
-cd yourproject
+git clone https://github.com/AchuAshwath/BravisaProject.git
+cd BravisaProject
+```
+
+### Step 2: Setting up the database
+First install Postgres and PgAdmin, [Download Postgres](https://www.postgresql.org/download/).
+```bash
+psql -h your_host -U your_username -d your_database -f create_tables.sql
+# DBsetup.ipynb includes the script to create schemas and tables
+# Run this cell to create all the tables and schemas 
+```
