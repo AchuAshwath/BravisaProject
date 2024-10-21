@@ -1,3 +1,6 @@
-Bravisa/
-app/IndexOHLC/
+Bavisa/
+app/IndexOHLCFiles/
 app/OHLCFiles/
+app/FBFiles/
+app/index-files/
+app/build/
