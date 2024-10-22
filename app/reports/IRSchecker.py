@@ -13,7 +13,7 @@ import pandas.io.sql as sqlio
 import time
 import math
 from datetime import timedelta
-from utils.db_helper import DB_Helper
+# from utils.db_helper import DB_Helper
 import utils.date_set as date_set
 import re
 import copy
@@ -191,51 +191,57 @@ class IRS:
 
     return btt_merge
 
-
-  def calc_change_rate(self,btt_merge, conn, date):
-    """ Calculate change rate
-
-    Args:
-      btt_merge = merge data of BTTList and OHLC.
-
-    Operation:
-      Fetch the data from OHLC for 1 week back. And calculate the change rate
-      Change Rate = ((current close – previous close)/ previous close) *  100.
-
-    Return:
-      Value of change rate.
-    """
-
-    week_back = (pd.to_datetime(date) +timedelta(-7)).strftime("%Y-%m-%d")
-
-    ohlc_prev_sql = 'SELECT DISTINCT ON("CompanyCode") * FROM public."OHLC" WHERE "Date" < \'' +date+ '\' AND "Date" > \''+week_back+'\' \
-                      ORDER BY "CompanyCode", "Date" DESC;'
-    ohlc_prev = sqlio.read_sql_query(ohlc_prev_sql, con=conn)
-    # print("COLUMNS", list(btt_merge.columns.values))
-    # duplicate = btt_merge[btt_merge.duplicated(subset = ["CompanyCode", "Close"]).sum()]
-    # print("Duplicates:\n", [~btt_merge.duplicated()])
-    btt_merge = btt_merge.drop_duplicates(subset='CompanyCode')
-    # print("Duplicates:\n", [~btt_merge.duplicated()])
-    for index, row in btt_merge.iterrows():
-      # if((btt_merge["CompanyCode"]==row['CompanyCode'])==True):
-      #   print("Company code: ", btt_merge["CompanyCode"])
-      current_close_list = btt_merge.loc[(btt_merge["CompanyCode"]==row['CompanyCode'])]["Close"]
-      # print("CLOSE: ", len(current_close_list.index))
-      current_close = current_close_list.item() if len(current_close_list.index) == 1 else np.nan
-
-      prev_close_list = ohlc_prev.loc[(ohlc_prev["CompanyCode"]==row['CompanyCode'])]["Close"]
-      prev_close = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
-
-      # print("\nCurrent Close: {} Previous Clone: {}\n".format(current_close, prev_close))
-
-      change = (current_close - prev_close)/prev_close * 100
-
-      btt_merge.loc[index, 'PrevClose'] = prev_close
-      btt_merge.loc[index, 'Change'] = change
-
-
-    return btt_merge
-
+  
+  def calc_change_rate(self, btt_merge, conn, date):
+      """ Calculate change rate
+  
+      Args:
+        btt_merge = merge data of BTTList and OHLC.
+  
+      Operation:
+        Fetch the data from OHLC for 1 week back. And calculate the change rate
+        Change Rate = ((current close – previous close)/ previous close) *  100.
+  
+      Return:
+        Value of change rate.
+      """
+  
+      week_back = (pd.to_datetime(date) + timedelta(-7)).strftime("%Y-%m-%d")
+  
+      ohlc_prev_sql = f"""
+                      SELECT DISTINCT ON("CompanyCode") * 
+                      FROM public."OHLC" 
+                      WHERE "Date" < '{date}' 
+                      ORDER BY "CompanyCode", "Date" DESC;
+                      """
+      ohlc_prev = sqlio.read_sql_query(ohlc_prev_sql, con=conn)
+      
+      btt_merge = btt_merge.drop_duplicates(subset='CompanyCode')
+  
+      for index, row in btt_merge.iterrows():
+          company_code = row['CompanyCode']
+          
+          # Check for null values in Open, High, Low, Close and replace them with values from ohlc_prev
+          if pd.isnull(row['Open']) or pd.isnull(row['High']) or pd.isnull(row['Low']) or pd.isnull(row['Close']):
+              ohlc_prev_row = ohlc_prev.loc[ohlc_prev['CompanyCode'] == company_code]
+              if not ohlc_prev_row.empty:
+                  btt_merge.at[index, 'Open'] = ohlc_prev_row['Open'].values[0] if pd.isnull(row['Open']) else row['Open']
+                  btt_merge.at[index, 'High'] = ohlc_prev_row['High'].values[0] if pd.isnull(row['High']) else row['High']
+                  btt_merge.at[index, 'Low'] = ohlc_prev_row['Low'].values[0] if pd.isnull(row['Low']) else row['Low']
+                  btt_merge.at[index, 'Close'] = ohlc_prev_row['Close'].values[0] if pd.isnull(row['Close']) else row['Close']
+  
+          current_close_list = btt_merge.loc[(btt_merge["CompanyCode"] == company_code)]["Close"]
+          current_close = current_close_list.item() if len(current_close_list.index) == 1 else np.nan
+  
+          prev_close_list = ohlc_prev.loc[(ohlc_prev["CompanyCode"] == company_code)]["Close"]
+          prev_close = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
+  
+          change = (current_close - prev_close) / prev_close * 100 if prev_close != 0 else np.nan
+  
+          btt_merge.loc[index, 'PrevClose'] = prev_close
+          btt_merge.loc[index, 'Change'] = change
+  
+      return btt_merge
 
   def get_background_info(self,btt_merge, conn):
     """ Get Background info
@@ -344,6 +350,8 @@ class IRS:
     """
 
     for index, row in industry_list.iterrows():
+      print("CompanyCode : ", row['CompanyCode'])
+      
 
       open_list = industry_list.loc[(industry_list['CompanyCode']==row['CompanyCode'])]['Open']
       open_val = open_list.item() if len(open_list.index) == 1 else np.nan
@@ -362,7 +370,19 @@ class IRS:
 
       ff_list = industry_list.loc[(industry_list['CompanyCode']==row['CompanyCode'])]['FreeFloat']
       ff_val = ff_list.item() if len(ff_list.index) == 1 else np.nan
-
+      
+      print("Open: ", open_val)
+      print("High: ", high_val)
+      print("Low: ", low_val)
+      print("Close: ", close_val)
+      print("OS: ", os_val)
+      print("FreeFloat: ", ff_val)
+      print()
+      print("FF_Open: ", ff_val * open_val * os_val)
+      print("FF_High: ", ff_val * high_val * os_val)
+      print("FF_Low: ", ff_val * low_val * os_val)
+      print("FF_Close: ", ff_val * close_val * os_val)
+      
       ff_open = ff_val * open_val * os_val
       ff_high = ff_val * high_val * os_val
       ff_low = ff_val * low_val * os_val
@@ -462,7 +482,7 @@ class IRS:
 
     exportfilename = "industryList_export.csv"
     exportfile = open(exportfilename,"w")
-    industry_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+    industry_list.to_csv(exportfile, header=True, index=False, lineterminator='\r')
     exportfile.close()
 
 
@@ -620,9 +640,16 @@ class IRS:
     sector_prevclose = indexhistory.loc[indexhistory["TICKER"].isin(Sector)]
     sector_prevclose = sector_prevclose.rename(columns = {"TICKER":"IndexName"})
 
-    prev_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
-                        WHERE "GenDate" < \''+date+'\'  \
-                        ORDER by "CompanyCode", "GenDate" desc ;')
+    prev_industry_list_sql = f"""
+                              SELECT DISTINCT ON("CompanyCode") * 
+                              FROM public."IndustryList"
+                              WHERE "GenDate" = (
+                                  SELECT MAX("GenDate") 
+                                  FROM public."IndustryList" 
+                                  WHERE "GenDate" < '{date}'
+                              )
+                              ORDER BY "CompanyCode", "GenDate" DESC;
+                              """
     prev_industry_list = sqlio.read_sql_query(prev_industry_list_sql, con = conn)
 
     current_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
@@ -696,93 +723,105 @@ class IRS:
         mcap_open_current = mcap_open_current_list.item() if len(mcap_open_current_list.index) == 1 else np.nan
 
         current_company_count = merge_sector_divisor.loc[merge_sector_divisor['IndexName'] == row['IndexName']]['Count'].values[0]
-            # print("current_company_count", current_company_count)
+        # print("current_company_count", current_company_count)
         prev_company_count = len(prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']])
 
         if prev_close is not np.nan:
-          if current_company_count == prev_company_count:
-              print("List has same number of companies")
-              prev_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['FF_Close'].sum()
-              prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-              prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
-              prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE'] 
-              # print(row['IndexName'], 'has same count')
+          prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-              if not prev_close_index.empty:
-                  prev_close_index = prev_close_index.iloc[0]
-                  prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-              else:
-                  prev_close_index = np.nan
-                  prev_mcap_close_index = np.nan
-                  
-              # divisor = divisor.iloc[0]
-              divisor = prev_close_sum / prev_close_index
-              mcap_divisor = prev_mcap_close_sum / prev_mcap_close_index
+          prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
 
-          # if divisor.iloc[0] == np.nan:
-              print("prev_close_sum: ", prev_close_sum)
-              print("prev_close_index: ", prev_close_index)
-              print("divisor: ", divisor)
-              print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-              print("prev_mcap_close_index: ", prev_mcap_close_index)
-              print("mcap_divisor: ", mcap_divisor)
-
-              merge_sector_divisor.loc[index, 'SumMCap_Open'] = prev_mcap_close_sum
-              merge_sector_divisor.loc[index, 'IndexValue'] = ff_close_current
-              merge_sector_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-              merge_sector_divisor.loc[index, 'Divisor'] = divisor
-              merge_sector_divisor.loc[index, 'OS'] = os_current
-
-          else:
-            print("List has different number of companies")
-            print("current_company_count: ", current_company_count)
-            print("prev_company_count: ", prev_company_count)
-
-            prev_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['FF_Close'].sum()
-            prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
+          current_companies = current_industry_list.loc[current_industry_list['SectorIndexName'] == row['IndexName']]
+          print("current_company_count: ", current_company_count)
+          
+          # prev_companies = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]
+          # print("prev_company_count: ", prev_company_count)
+          current_companies_prev_list = prev_industry_list.loc[prev_industry_list['CompanyCode'].isin(current_companies['CompanyCode'])]
+          print("Companies from current list on previous list :", len(current_companies_prev_list))
             
-            # mcap_open_sum = current_industry_list.loc[current_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Open'].sum()
+          new_companies = current_companies[~current_companies['CompanyCode'].isin(current_companies_prev_list['CompanyCode'])]
+          print("new_companies: ", len(new_companies))
+          
+          
+          if(len(current_companies_prev_list)==len(current_companies)):
+            print("only OS has changed, no new companies added")
+            # merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
+            
+          elif(len(current_companies_prev_list)<len(current_companies)):
+            print("new companies added")
+            # prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+            # prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+            
+            # new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+            # addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+            
+          elif(len(current_companies_prev_list)>len(current_companies)):
+            print("companies removed")
+          
+          merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
 
-            prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
-            prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
+          prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+          print("prev_companies_with_same_OS: ", len(prev_companies_with_same_OS))
+          # print(row['IndexName'])
+          # print(prev_companies_with_same_OS.columns)
+          prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['SectorIndexName_prev'] == row['IndexName']]['FF_Close_prev'].sum() 
+          prev_mcap_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['SectorIndexName_prev'] == row['IndexName']]['MCap_Close_prev'].sum()
+          # prev_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+          print("prev_close_sum: ", prev_close_sum) 
+          print("prev_mcap_close_sum: ", prev_mcap_close_sum)   
+          # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close']
+          # keep only row with the same companycode from current companies
+          # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+          
+          prev_companies_with_different_OS = merged_companies[merged_companies['OS_prev'] != merged_companies['OS_current']]
+          print("prev_companies_with_different_OS: ", len(prev_companies_with_different_OS))
+          # companies_with_diff_OS = prev_companies_with_different_OS[prev_companies_with_different_OS['IndustryIndexName'] == row['IndexName']]
+          
+          prev_companies_with_different_OS['prev_close_sum_for_diff_OS'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['FreeFloat_current'] * prev_companies_with_different_OS['PrevClose_current']
+          changed_prev_close_sum = prev_companies_with_different_OS['prev_close_sum_for_diff_OS'].sum()
+          prev_companies_with_different_OS['prev_MCap_Close'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['PrevClose_current']
+          changed_prev_mcap_close_sum = prev_companies_with_different_OS['prev_MCap_Close'].sum()
+           
+          print("changed_prev_close_sum: ", changed_prev_close_sum)
+          print("changed_prev_mcap_close_sum: ", changed_prev_mcap_close_sum)
+          
+          # prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
+          print("", new_companies[['OS', 'FreeFloat', 'PrevClose']])
 
-            current_companies = current_industry_list.loc[current_industry_list['SectorIndexName'] == row['IndexName']]
-            prev_companies = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]
+          new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+          addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+          print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
 
-            new_companies = current_companies[~current_companies['CompanyCode'].isin(prev_companies['CompanyCode'])]
-
-            new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
-            addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
-
-            new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
-            addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+          new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
+          addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+          print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
 
 
-            if not prev_close_index.empty:
-                prev_close_index = prev_close_index.iloc[0]
-                prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-            else:
-                prev_close_index = np.nan
-                prev_mcap_close_index = np.nan
+          if not prev_close_index.empty:
+              prev_close_index = prev_close_index.iloc[0]
+              prev_mcap_close_index = prev_mcap_close_index.iloc[0]
+          else:
+              prev_close_index = np.nan
+              prev_mcap_close_index = np.nan
 
-            divisor = (prev_close_sum + addition_to_prev_close_sum) / prev_close_index
-            mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum) / prev_mcap_close_index
+          divisor = (prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum) / prev_close_index
+          mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum) / prev_mcap_close_index
+          print()
+          print("prev_close_sum: ", prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum)
+          print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
+          print("prev_close_index: ", prev_close_index)
+          print("divisor: ", divisor)
+          print("prev_mcap_close_sum: ", prev_mcap_close_sum)
+          print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
+          print("prev_mcap_close_index: ", prev_mcap_close_index)
+          print("mcap_divisor : ", mcap_divisor)
 
-            print("prev_close_sum: ", prev_close_sum)
-            print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
-            print("prev_close_index: ", prev_close_index)
-            print("divisor: ", divisor)
-            print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-            print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
-            print("prev_mcap_close_index: ", prev_mcap_close_index)
-            print("mcap_divisor : ", mcap_divisor)
-
-            merge_sector_divisor.loc[index, 'IndexValue'] = ff_close_current
-            merge_sector_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-            merge_sector_divisor.loc[index, 'SumMCap_Open'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum
-            merge_sector_divisor.loc[index, 'Divisor'] = divisor
-            merge_sector_divisor.loc[index, 'OS'] = os_current
+          merge_sector_divisor.loc[index, 'IndexValue'] = prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum
+          merge_sector_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum
+          merge_sector_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
+          merge_sector_divisor.loc[index, 'Divisor'] = divisor
+          merge_sector_divisor.loc[index, 'OS'] = os_current
 
         else:
             divisor_current = ff_close_current / 1000
@@ -842,9 +881,16 @@ class IRS:
     subsector_prevclose = indexhistory.loc[indexhistory["TICKER"].isin(SubSector)]
     subsector_prevclose = subsector_prevclose.rename(columns = {"TICKER":"IndexName"})
 
-    prev_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
-                        WHERE "GenDate" < \''+date+'\'  \
-                        ORDER by "CompanyCode", "GenDate" desc ;')
+    prev_industry_list_sql = f"""
+                              SELECT DISTINCT ON("CompanyCode") * 
+                              FROM public."IndustryList"
+                              WHERE "GenDate" = (
+                                  SELECT MAX("GenDate") 
+                                  FROM public."IndustryList" 
+                                  WHERE "GenDate" < '{date}'
+                              )
+                              ORDER BY "CompanyCode", "GenDate" DESC;
+                              """
     prev_industry_list = sqlio.read_sql_query(prev_industry_list_sql, con = conn)
 
     current_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
@@ -902,9 +948,10 @@ class IRS:
             merge_subsector_divisor.loc[index, 'OS'] = os_prev
 
         else:
-            print('OS previous is not equal to OS current')
-            print("OS prev: ", os_prev)
+            print("OS previous is not equal to OS current")
+            print("OS previous: ", os_prev)
             print("OS current: ", os_current)
+
             ff_close_current_list = subsector_divisor_list.loc[subsector_divisor_list['SubSectorIndexName'] == row['IndexName']]['ff_open_sum']
             ff_close_current = ff_close_current_list.item() if len(ff_close_current_list.index) == 1 else np.nan
 
@@ -912,93 +959,106 @@ class IRS:
             mcap_open_current = mcap_open_current_list.item() if len(mcap_open_current_list.index) == 1 else np.nan
 
             current_company_count = merge_subsector_divisor.loc[merge_subsector_divisor['IndexName'] == row['IndexName']]['Count'].values[0]
-                # print("current_company_count", current_company_count)
-            prev_company_count = len(prev_industry_list.loc[prev_industry_list['SubSectorIndexName'] == row['IndexName']])
+            # print("current_company_count", current_company_count)
+            prev_company_count = len(prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']])
 
             if prev_close is not np.nan:
-              if current_company_count == prev_company_count:
-                  print("List has same number of companies")
-                  prev_close_sum = prev_industry_list.loc[prev_industry_list['SubSectorIndexName'] == row['IndexName']]['FF_Close'].sum()
-                  prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-                  prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SubSectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
-                  prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE'] 
-                  # print(row['IndexName'], 'has same count')
+              prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-                  if not prev_close_index.empty:
-                      prev_close_index = prev_close_index.iloc[0]
-                      prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-                  else:
-                      prev_close_index = np.nan
-                      prev_mcap_close_index = np.nan
-                      
-                  # divisor = divisor.iloc[0]
-                  divisor = prev_close_sum / prev_close_index
-                  mcap_divisor = prev_mcap_close_sum / prev_mcap_close_index
+              prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
 
-              # if divisor.iloc[0] == np.nan:
-                  print("prev_close_sum: ", prev_close_sum)
-                  print("prev_close_index: ", prev_close_index)
-                  print("divisor: ", divisor)
-                  print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-                  print("prev_mcap_close_index: ", prev_mcap_close_index)
-                  print("mcap_divisor: ", mcap_divisor)
-
-                  merge_subsector_divisor.loc[index, 'SumMCap_Open'] = prev_mcap_close_sum
-                  merge_subsector_divisor.loc[index, 'IndexValue'] = ff_close_current
-                  merge_subsector_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-                  merge_subsector_divisor.loc[index, 'Divisor'] = divisor
-                  merge_subsector_divisor.loc[index, 'OS'] = os_current
-
-              else:
-                print("List has different number of companies")
-                print("current_company_count: ", current_company_count)
-                print("prev_company_count: ", prev_company_count)
-
-                prev_close_sum = prev_industry_list.loc[prev_industry_list['SubSectorIndexName'] == row['IndexName']]['FF_Close'].sum()
-                prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
+              current_companies = current_industry_list.loc[current_industry_list['SubSectorIndexName'] == row['IndexName']]
+              print("current_company_count: ", current_company_count)
+              
+              # prev_companies = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]
+              # print("prev_company_count: ", prev_company_count)
+              current_companies_prev_list = prev_industry_list.loc[prev_industry_list['CompanyCode'].isin(current_companies['CompanyCode'])]
+              print("Companies from current list on previous list :", len(current_companies_prev_list))
                 
-                # mcap_open_sum = current_industry_list.loc[current_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Open'].sum()
+              new_companies = current_companies[~current_companies['CompanyCode'].isin(current_companies_prev_list['CompanyCode'])]
+              print("new_companies: ", len(new_companies))
+              
+              
+              if(len(current_companies_prev_list)==len(current_companies)):
+                print("only OS has changed, no new companies added")
+                # merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
+                
+              elif(len(current_companies_prev_list)<len(current_companies)):
+                print("new companies added")
+                # prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+                # prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+                
+                # new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+                # addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+                
+              elif(len(current_companies_prev_list)>len(current_companies)):
+                print("companies removed")
+              
+              merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
 
-                prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SubSectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
-                prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
+              prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+              print("prev_companies_with_same_OS: ", len(prev_companies_with_same_OS))
+              # print(row['IndexName'])
+              # print(prev_companies_with_same_OS.columns)
+              prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['SubSectorIndexName_prev'] == row['IndexName']]['FF_Close_prev'].sum() 
+              prev_mcap_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['SubSectorIndexName_prev'] == row['IndexName']]['MCap_Close_prev'].sum()
+              # prev_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+              print("prev_close_sum: ", prev_close_sum) 
+              print("prev_mcap_close_sum: ", prev_mcap_close_sum)   
+              # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close']
+              # keep only row with the same companycode from current companies
+              # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+              
+              prev_companies_with_different_OS = merged_companies[merged_companies['OS_prev'] != merged_companies['OS_current']]
+              print("prev_companies_with_different_OS: ", len(prev_companies_with_different_OS))
+              # companies_with_diff_OS = prev_companies_with_different_OS[prev_companies_with_different_OS['IndustryIndexName'] == row['IndexName']]
+              
+              prev_companies_with_different_OS['prev_close_sum_for_diff_OS'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['FreeFloat_current'] * prev_companies_with_different_OS['PrevClose_current']
+              changed_prev_close_sum = prev_companies_with_different_OS['prev_close_sum_for_diff_OS'].sum()
+              prev_companies_with_different_OS['prev_MCap_Close'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['PrevClose_current']
+              changed_prev_mcap_close_sum = prev_companies_with_different_OS['prev_MCap_Close'].sum()
+              
+              print("changed_prev_close_sum: ", changed_prev_close_sum)
+              print("changed_prev_mcap_close_sum: ", changed_prev_mcap_close_sum)
+              
+              # prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
+              print("", new_companies[['OS', 'FreeFloat', 'PrevClose']])
 
-                current_companies = current_industry_list.loc[current_industry_list['SubSectorIndexName'] == row['IndexName']]
-                prev_companies = prev_industry_list.loc[prev_industry_list['SubSectorIndexName'] == row['IndexName']]
+              new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+              addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+              print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
 
-                new_companies = current_companies[~current_companies['CompanyCode'].isin(prev_companies['CompanyCode'])]
-
-                new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
-                addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
-
-                new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
-                addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+              new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
+              addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+              print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
 
 
-                if not prev_close_index.empty:
-                    prev_close_index = prev_close_index.iloc[0]
-                    prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-                else:
-                    prev_close_index = np.nan
-                    prev_mcap_close_index = np.nan
+              if not prev_close_index.empty:
+                  prev_close_index = prev_close_index.iloc[0]
+                  prev_mcap_close_index = prev_mcap_close_index.iloc[0]
+              else:
+                  prev_close_index = np.nan
+                  prev_mcap_close_index = np.nan
 
-                divisor = (prev_close_sum + addition_to_prev_close_sum) / prev_close_index
-                mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum) / prev_mcap_close_index
+              divisor = (prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum) / prev_close_index
+              mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum) / prev_mcap_close_index
+              print()
+              print("prev_close_sum: ", prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum)
+              print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
+              print("prev_close_index: ", prev_close_index)
+              print("divisor: ", divisor)
+              print("prev_mcap_close_sum: ", prev_mcap_close_sum)
+              print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
+              print("prev_mcap_close_index: ", prev_mcap_close_index)
+              print("mcap_divisor : ", mcap_divisor)
 
-                print("prev_close_sum: ", prev_close_sum)
-                print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
-                print("prev_close_index: ", prev_close_index)
-                print("divisor: ", divisor)
-                print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-                print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
-                print("prev_mcap_close_index: ", prev_mcap_close_index)
-                print("mcap_divisor : ", mcap_divisor)
+              merge_subsector_divisor.loc[index, 'IndexValue'] = prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum
+              merge_subsector_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum
+              merge_subsector_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
+              merge_subsector_divisor.loc[index, 'Divisor'] = divisor
+              merge_subsector_divisor.loc[index, 'OS'] = os_current
 
-                merge_subsector_divisor.loc[index, 'IndexValue'] = ff_close_current
-                merge_subsector_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-                merge_subsector_divisor.loc[index, 'SumMCap_Open'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum
-                merge_subsector_divisor.loc[index, 'Divisor'] = divisor
-                merge_subsector_divisor.loc[index, 'OS'] = os_current
 
             else:
               divisor_current = ff_close_current / 1000
@@ -1058,9 +1118,16 @@ class IRS:
     industry_prevclose = indexhistory.loc[indexhistory["TICKER"].isin(industry)]
     industry_prevclose = industry_prevclose.rename(columns = {"TICKER":"IndexName"})
 
-    prev_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
-                        WHERE "GenDate" < \''+date+'\'  \
-                        ORDER by "CompanyCode", "GenDate" desc ;')
+    prev_industry_list_sql = f"""
+                              SELECT DISTINCT ON("CompanyCode") * 
+                              FROM public."IndustryList"
+                              WHERE "GenDate" = (
+                                  SELECT MAX("GenDate") 
+                                  FROM public."IndustryList" 
+                                  WHERE "GenDate" < '{date}'
+                              )
+                              ORDER BY "CompanyCode", "GenDate" DESC;
+                              """
     prev_industry_list = sqlio.read_sql_query(prev_industry_list_sql, con = conn)
 
     current_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
@@ -1131,87 +1198,103 @@ class IRS:
           mcap_open_current = mcap_open_current_list.item() if len(mcap_open_current_list.index) == 1 else np.nan
 
           current_company_count = merge_industry_divisor.loc[merge_industry_divisor['IndexName'] == row['IndexName']]['Count'].values[0]
-          prev_company_count = len(prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']])
+          # prev_company_count = len(prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']])
 
           if prev_close is not np.nan:
-              if current_company_count == prev_company_count:
-                  print("List has same number of companies")
-                  prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
-                  prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
+        
+            # print("List has different number of companies")
+            
+            prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-                  prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['MCap_Close'].sum()
-                  prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
+            prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
 
-                  if not prev_close_index.empty:
-                      prev_close_index = prev_close_index.iloc[0]
-                      prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-                  else:
-                      prev_close_index = np.nan
-                      prev_mcap_close_index = np.nan
+            current_companies = current_industry_list.loc[current_industry_list['IndustryIndexName'] == row['IndexName']]
+            print("current_company_count: ", current_company_count)
+            
+            # prev_companies = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]
+            # print("prev_company_count: ", prev_company_count)
+            current_companies_prev_list = prev_industry_list.loc[prev_industry_list['CompanyCode'].isin(current_companies['CompanyCode'])]
+            print("Companies from current list on previous list :", len(current_companies_prev_list))
+              
+            new_companies = current_companies[~current_companies['CompanyCode'].isin(current_companies_prev_list['CompanyCode'])]
+            print("new_companies: ", len(new_companies))
+            
+            
+            if(len(current_companies_prev_list)==len(current_companies)):
+              print("only OS has changed, no new companies added")
+              # merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
+              
+            elif(len(current_companies_prev_list)<len(current_companies)):
+              print("new companies added")
+              # prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+              # prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+              
+              # new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+              # addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+              
+            elif(len(current_companies_prev_list)>len(current_companies)):
+              print("companies removed")
+            
+            merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
 
-                  divisor = prev_close_sum / prev_close_index
-                  mcap_divisor = prev_mcap_close_sum / prev_mcap_close_index
+            prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+            prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['IndustryIndexName_prev'] == row['IndexName']]['FF_Close_prev'].sum()
+            prev_mcap_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['IndustryIndexName_prev'] == row['IndexName']]['MCap_Close_prev'].sum()
+            # prev_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+            print("prev_close_sum: ", prev_close_sum) 
+            print("prev_mcap_close_sum: ", prev_mcap_close_sum)   
+            # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close']
+            # keep only row with the same companycode from current companies
+            # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+            
+            prev_companies_with_different_OS = merged_companies[merged_companies['OS_prev'] != merged_companies['OS_current']]
+            print("prev_companies_with_different_OS: ", len(prev_companies_with_different_OS))
+            # companies_with_diff_OS = prev_companies_with_different_OS[prev_companies_with_different_OS['IndustryIndexName'] == row['IndexName']]
+            
+            prev_companies_with_different_OS['prev_close_sum_for_diff_OS'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['FreeFloat_current'] * prev_companies_with_different_OS['PrevClose_current']
+            changed_prev_close_sum = prev_companies_with_different_OS['prev_close_sum_for_diff_OS'].sum()
+            prev_companies_with_different_OS['prev_MCap_Close'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['PrevClose_current']
+            changed_prev_mcap_close_sum = prev_companies_with_different_OS['prev_MCap_Close'].sum()
+            
+            print("changed_prev_close_sum: ", changed_prev_close_sum)
+            print("changed_prev_mcap_close_sum: ", changed_prev_mcap_close_sum)
+            
+            # prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
+            print("", new_companies[['OS', 'FreeFloat', 'PrevClose']])
 
-                  print("prev_close_sum: ", prev_close_sum)
-                  print("prev_close_index: ", prev_close_index)
-                  print("divisor: ", divisor)
-                  print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-                  print("prev_mcap_close_index: ", prev_mcap_close_index)
-                  print("mcap_divisor: ", mcap_divisor)
-                  merge_industry_divisor.loc[index, 'IndexValue'] = ff_close_current
-                  merge_industry_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum
-                  merge_industry_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-                  merge_industry_divisor.loc[index, 'Divisor'] = divisor
-                  merge_industry_divisor.loc[index, 'OS'] = os_current
+            new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+            addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+            print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
 
-              else:
-                  print("List has different number of companies")
-                  print("current_company_count: ", current_company_count)
-                  print("prev_company_count: ", prev_company_count)
-
-                  prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
-                  prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
-
-                  prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['MCap_Close'].sum()
-                  prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
-
-                  current_companies = current_industry_list.loc[current_industry_list['IndustryIndexName'] == row['IndexName']]
-                  prev_companies = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]
-
-                  new_companies = current_companies[~current_companies['CompanyCode'].isin(prev_companies['CompanyCode'])]
-
-                  new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
-                  addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
-
-                  new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
-                  addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+            new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
+            addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+            print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
 
 
-                  if not prev_close_index.empty:
-                      prev_close_index = prev_close_index.iloc[0]
-                      prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-                  else:
-                      prev_close_index = np.nan
-                      prev_mcap_close_index = np.nan
+            if not prev_close_index.empty:
+                prev_close_index = prev_close_index.iloc[0]
+                prev_mcap_close_index = prev_mcap_close_index.iloc[0]
+            else:
+                prev_close_index = np.nan
+                prev_mcap_close_index = np.nan
 
-                  divisor = (prev_close_sum + addition_to_prev_close_sum) / prev_close_index
-                  mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum) / prev_mcap_close_index
+            divisor = (prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum) / prev_close_index
+            mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum) / prev_mcap_close_index
+            print()
+            print("prev_close_sum: ", prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum)
+            print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
+            print("prev_close_index: ", prev_close_index)
+            print("divisor: ", divisor)
+            print("prev_mcap_close_sum: ", prev_mcap_close_sum)
+            print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
+            print("prev_mcap_close_index: ", prev_mcap_close_index)
+            print("mcap_divisor : ", mcap_divisor)
 
-                  print("prev_close_sum: ", prev_close_sum)
-                  print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
-                  print("prev_close_index: ", prev_close_index)
-                  print("divisor: ", divisor)
-                  print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-                  print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
-                  print("prev_mcap_close_index: ", prev_mcap_close_index)
-                  print("mcap_divisor : ", mcap_divisor)
-
-                  merge_industry_divisor.loc[index, 'IndexValue'] = ff_close_current
-                  merge_industry_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum
-                  merge_industry_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-                  merge_industry_divisor.loc[index, 'Divisor'] = divisor
-                  merge_industry_divisor.loc[index, 'OS'] = os_current
-
+            merge_industry_divisor.loc[index, 'IndexValue'] = prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum
+            merge_industry_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum
+            merge_industry_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
+            merge_industry_divisor.loc[index, 'Divisor'] = divisor
+            merge_industry_divisor.loc[index, 'OS'] = os_current
           else:
               divisor_current = ff_close_current / 1000
               MCapdivisor_current = mcap_open_current / 1000
@@ -1274,9 +1357,16 @@ class IRS:
     sub_industry_prevclose = indexhistory.loc[indexhistory["TICKER"].isin(sub_industry)]
     sub_industry_prevclose = sub_industry_prevclose.rename(columns = {"TICKER":"IndexName"})
 
-    prev_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
-                        WHERE "GenDate" < \''+date+'\'  \
-                        ORDER by "CompanyCode", "GenDate" desc ;')
+    prev_industry_list_sql = f"""
+                              SELECT DISTINCT ON("CompanyCode") * 
+                              FROM public."IndustryList"
+                              WHERE "GenDate" = (
+                                  SELECT MAX("GenDate") 
+                                  FROM public."IndustryList" 
+                                  WHERE "GenDate" < '{date}'
+                              )
+                              ORDER BY "CompanyCode", "GenDate" DESC;
+                              """
     prev_industry_list = sqlio.read_sql_query(prev_industry_list_sql, con = conn)
 
     current_industry_list_sql = ('SELECT DISTINCT ON("CompanyCode") * FROM public."IndustryList" \
@@ -1354,96 +1444,114 @@ class IRS:
             prev_company_count = len(prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']])
 
             if prev_close is not np.nan:
-                if current_company_count == prev_company_count:
-                    print("List has same number of companies")
-                    prev_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
-                    prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-                    prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['MCap_Close'].sum()
-                    prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
+              prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
 
-                    if not prev_close_index.empty:
-                        prev_close_index = prev_close_index.iloc[0]
-                        prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-                    else:
-                        prev_close_index = np.nan
-                        prev_mcap_close_index = np.nan
+              prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
 
-                    divisor = prev_close_sum / prev_close_index
-                    mcap_divisor = prev_mcap_close_sum / prev_mcap_close_index
+              current_companies = current_industry_list.loc[current_industry_list['SubIndustryIndexName'] == row['IndexName']]
+              print("current_company_count: ", current_company_count)
+              
+              # prev_companies = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]
+              # print("prev_company_count: ", prev_company_count)
+              current_companies_prev_list = prev_industry_list.loc[prev_industry_list['CompanyCode'].isin(current_companies['CompanyCode'])]
+              print("Companies from current list on previous list :", len(current_companies_prev_list))
+                
+              new_companies = current_companies[~current_companies['CompanyCode'].isin(current_companies_prev_list['CompanyCode'])]
+              print("new_companies: ", len(new_companies))
+              
+              
+              if(len(current_companies_prev_list)==len(current_companies)):
+                print("only OS has changed, no new companies added")
+                # merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
+                
+              elif(len(current_companies_prev_list)<len(current_companies)):
+                print("new companies added")
+                # prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+                # prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+                
+                # new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+                # addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+                
+              elif(len(current_companies_prev_list)>len(current_companies)):
+                print("companies removed")
+              
+              merged_companies = pd.merge(current_companies_prev_list, current_companies, on='CompanyCode', suffixes=('_prev', '_current'))
 
-                    print("prev_close_sum: ", prev_close_sum)
-                    print("prev_close_index: ", prev_close_index)
-                    print("divisor: ", divisor)
-                    print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-                    print("prev_mcap_close_index: ", prev_mcap_close_index)
-                    print("mcap_divisor: ", mcap_divisor)
-                    merge_sub_industry_divisor.loc[index, 'IndexValue'] = ff_close_current
-                    merge_sub_industry_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum
-                    merge_sub_industry_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-                    merge_sub_industry_divisor.loc[index, 'Divisor'] = divisor
-                    merge_sub_industry_divisor.loc[index, 'OS'] = os_current
+              prev_companies_with_same_OS = merged_companies[merged_companies['OS_prev'] == merged_companies['OS_current']]
+              print("prev_companies_with_same_OS: ", len(prev_companies_with_same_OS))
+              # print(row['IndexName'])
+              # print(prev_companies_with_same_OS.columns)
+              prev_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['SubIndustryIndexName_prev'] == row['IndexName']]['FF_Close_prev'].sum() 
+              prev_mcap_close_sum = prev_companies_with_same_OS[prev_companies_with_same_OS['SubIndustryIndexName_prev'] == row['IndexName']]['MCap_Close_prev'].sum()
+              # prev_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+              print("prev_close_sum: ", prev_close_sum) 
+              print("prev_mcap_close_sum: ", prev_mcap_close_sum)   
+              # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close']
+              # keep only row with the same companycode from current companies
+              # prev_close_sum = prev_industry_list.loc[prev_industry_list['IndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
+              
+              prev_companies_with_different_OS = merged_companies[merged_companies['OS_prev'] != merged_companies['OS_current']]
+              print("prev_companies_with_different_OS: ", len(prev_companies_with_different_OS))
+              # companies_with_diff_OS = prev_companies_with_different_OS[prev_companies_with_different_OS['IndustryIndexName'] == row['IndexName']]
+              
+              prev_companies_with_different_OS['prev_close_sum_for_diff_OS'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['FreeFloat_current'] * prev_companies_with_different_OS['PrevClose_current']
+              changed_prev_close_sum = prev_companies_with_different_OS['prev_close_sum_for_diff_OS'].sum()
+              prev_companies_with_different_OS['prev_MCap_Close'] = prev_companies_with_different_OS['OS_current'] * prev_companies_with_different_OS['PrevClose_current']
+              changed_prev_mcap_close_sum = prev_companies_with_different_OS['prev_MCap_Close'].sum()
+              
+              print("changed_prev_close_sum: ", changed_prev_close_sum)
+              print("changed_prev_mcap_close_sum: ", changed_prev_mcap_close_sum)
+              
+              # prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SectorIndexName'] == row['IndexName']]['MCap_Close'].sum()
+              print("", new_companies[['OS', 'FreeFloat', 'PrevClose']])
 
-                else:
-                    print("List has different number of companies")
-                    print("current_company_count: ", current_company_count)
-                    print("prev_company_count: ", prev_company_count)
+              new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
+              addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
+              print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
 
-                    prev_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['FF_Close'].sum()
-                    prev_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['CLOSE']
-
-                    prev_mcap_close_sum = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]['MCap_Close'].sum()
-                    prev_mcap_close_index = indexhistory[indexhistory['TICKER'] == row['IndexName']]['MCap_CLOSE']   #
-
-                    current_companies = current_industry_list.loc[current_industry_list['SubIndustryIndexName'] == row['IndexName']]
-                    prev_companies = prev_industry_list.loc[prev_industry_list['SubIndustryIndexName'] == row['IndexName']]
-
-                    new_companies = current_companies[~current_companies['CompanyCode'].isin(prev_companies['CompanyCode'])]
-
-                    new_companies['prev_FF_Close'] = new_companies['OS'] * new_companies['FreeFloat'] * new_companies['PrevClose']
-                    addition_to_prev_close_sum = new_companies['prev_FF_Close'].sum()
-
-                    new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
-                    addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+              new_companies['prev_MCap_Close'] = new_companies['OS'] * new_companies['PrevClose']
+              addition_to_prev_mcap_close_sum = new_companies['prev_MCap_Close'].sum()
+              print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
 
 
-                    if not prev_close_index.empty:
-                        prev_close_index = prev_close_index.iloc[0]
-                        prev_mcap_close_index = prev_mcap_close_index.iloc[0]
-                    else:
-                        prev_close_index = np.nan
-                        prev_mcap_close_index = np.nan
+              if not prev_close_index.empty:
+                  prev_close_index = prev_close_index.iloc[0]
+                  prev_mcap_close_index = prev_mcap_close_index.iloc[0]
+              else:
+                  prev_close_index = np.nan
+                  prev_mcap_close_index = np.nan
 
-                    divisor = (prev_close_sum + addition_to_prev_close_sum) / prev_close_index
-                    mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum) / prev_mcap_close_index
+              divisor = (prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum) / prev_close_index
+              mcap_divisor = (prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum) / prev_mcap_close_index
+              print()
+              print("prev_close_sum: ", prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum)
+              print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
+              print("prev_close_index: ", prev_close_index)
+              print("divisor: ", divisor)
+              print("prev_mcap_close_sum: ", prev_mcap_close_sum)
+              print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
+              print("prev_mcap_close_index: ", prev_mcap_close_index)
+              print("mcap_divisor : ", mcap_divisor)
 
-                    print("prev_close_sum: ", prev_close_sum)
-                    print("addition_to_prev_close_sum: ", addition_to_prev_close_sum)
-                    print("prev_close_index: ", prev_close_index)
-                    print("divisor: ", divisor)
-                    print("prev_mcap_close_sum: ", prev_mcap_close_sum)
-                    print("addition_to_prev_mcap_close_sum: ", addition_to_prev_mcap_close_sum)
-                    print("prev_mcap_close_index: ", prev_mcap_close_index)
-                    print("mcap_divisor : ", mcap_divisor)
-
-                    merge_sub_industry_divisor.loc[index, 'IndexValue'] = ff_close_current
-                    merge_sub_industry_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum
-                    merge_sub_industry_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
-                    merge_sub_industry_divisor.loc[index, 'Divisor'] = divisor
-                    merge_sub_industry_divisor.loc[index, 'OS'] = os_current
+              merge_sub_industry_divisor.loc[index, 'IndexValue'] = prev_close_sum + addition_to_prev_close_sum + changed_prev_close_sum
+              merge_sub_industry_divisor.loc[index, 'MCap_Open_sum'] = prev_mcap_close_sum + addition_to_prev_mcap_close_sum + changed_prev_mcap_close_sum
+              merge_sub_industry_divisor.loc[index, 'MCapDivisor'] = mcap_divisor
+              merge_sub_industry_divisor.loc[index, 'Divisor'] = divisor
+              merge_sub_industry_divisor.loc[index, 'OS'] = os_current
 
             else:
-                divisor_current = ff_close_current / 1000
-                MCapdivisor_current = mcap_open_current / 1000
-                print("Divisor: ", divisor_current)
-                print("FF_Open_sum: ", ff_close_current)
-                print("Mcap_Open_sum: ", mcap_open_current)
-                print("MCapDivisor: ", MCapdivisor_current)
-                merge_sub_industry_divisor.loc[index, 'MCap_Open_sum'] = mcap_open_current
-                merge_sub_industry_divisor.loc[index, 'Divisor'] = divisor_current
-                merge_sub_industry_divisor.loc[index, 'IndexValue'] = ff_close_current
-                merge_sub_industry_divisor.loc[index, 'MCapDivisor'] = MCapdivisor_current
-                merge_sub_industry_divisor.loc[index, 'OS'] = os_current
+              divisor_current = ff_close_current / 1000
+              MCapdivisor_current = mcap_open_current / 1000
+              print("Divisor: ", divisor_current)
+              print("FF_Open_sum: ", ff_close_current)
+              print("Mcap_Open_sum: ", mcap_open_current)
+              print("MCapDivisor: ", MCapdivisor_current)
+              merge_sub_industry_divisor.loc[index, 'MCap_Open_sum'] = mcap_open_current
+              merge_sub_industry_divisor.loc[index, 'Divisor'] = divisor_current
+              merge_sub_industry_divisor.loc[index, 'IndexValue'] = ff_close_current
+              merge_sub_industry_divisor.loc[index, 'MCapDivisor'] = MCapdivisor_current
+              merge_sub_industry_divisor.loc[index, 'OS'] = os_current
 
     return merge_sub_industry_divisor
   
@@ -1472,7 +1580,7 @@ class IRS:
 
     exportfilename = "SectorDivisor.csv"
     exportfile = open(exportfilename,"w")
-    merge_sector_divisor.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+    merge_sector_divisor.to_csv(exportfile, header=True, index=False, lineterminator='\r')
     exportfile.close()
 
 
@@ -1508,7 +1616,7 @@ class IRS:
 
     exportfilename = "SubSectorDivisor.csv"
     exportfile = open(exportfilename,"w")
-    merge_subsector_divisor.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+    merge_subsector_divisor.to_csv(exportfile, header=True, index=False,  lineterminator='\r')
     exportfile.close()
 
 
@@ -1546,7 +1654,7 @@ class IRS:
 
     exportfilename = "IndustryDivisor.csv"
     exportfile = open(exportfilename,"w")
-    merge_industry_divisor.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+    merge_industry_divisor.to_csv(exportfile, header=True, index=False,  lineterminator='\r')
     exportfile.close()
 
 
@@ -1581,7 +1689,7 @@ class IRS:
 
     exportfilename = "SubIndustryDivisor.csv"
     exportfile = open(exportfilename,"w")
-    merge_sub_industry_divisor.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+    merge_sub_industry_divisor.to_csv(exportfile, header=True, index=False,  lineterminator='\r')
     exportfile.close()
 
 
@@ -1775,7 +1883,7 @@ class IRS:
 
     exportfilename = "SectorIndexList.csv"
     exportfile = open(exportfilename,"w")
-    sector_index.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+    sector_index.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
     exportfile.close()
 
 
@@ -1962,7 +2070,7 @@ class IRS:
 
     exportfilename = "SubSectorIndexList.csv"
     exportfile = open(exportfilename,"w")
-    subsector_index.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+    subsector_index.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
     exportfile.close()
 
 
@@ -2150,7 +2258,7 @@ class IRS:
 
     exportfilename = "IndustryIndexList.csv"
     exportfile = open(exportfilename,"w")
-    industry_index.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+    industry_index.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
     exportfile.close()
 
 
@@ -2323,7 +2431,7 @@ class IRS:
 
     exportfilename = "SubIndustryIndexList.csv"
     exportfile = open(exportfilename,"w")
-    industry_index.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+    industry_index.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
     exportfile.close()
 
 
@@ -2381,7 +2489,7 @@ class IRS:
         current_close_list = sector_index.loc[(sector_index['SectorIndexName']==row['SectorIndexName'])]['Close']
         current_close = current_close_list.item() if len(current_close_list.index) == 1 else np.nan
 
-        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) else 0
+        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) and prev_close!=0 else pd.NA
 
         sector_index.loc[index, 'Change'] = change_six_months
 
@@ -2405,7 +2513,7 @@ class IRS:
         current_close_list = subsector_index.loc[(subsector_index['SubSectorIndexName']==row['SubSectorIndexName'])]['Close']
         current_close = current_close_list.item() if len(current_close_list.index) == 1 else np.nan
 
-        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) else 0
+        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) and prev_close!=0 else pd.NA
 
 
         subsector_index.loc[index, 'Change'] = change_six_months
@@ -2424,14 +2532,16 @@ class IRS:
 
       for index, row in industry_index.iterrows():
 
+        print("change six months for sub industry :", row['IndustryIndexName'])
         prev_close_list = index_history.loc[(index_history['TICKER']==row['IndustryIndexName'])]['CLOSE']
         prev_close = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
 
         current_close_list = industry_index.loc[(industry_index['IndustryIndexName']==row['IndustryIndexName'])]['Close']
         current_close = current_close_list.item() if len(current_close_list.index) == 1 else np.nan
+        print("current_close: ", current_close)
+        print("prev_close: ", prev_close)
 
-        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) else 0
-
+        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) and prev_close!=0 else pd.NA
 
         industry_index.loc[index, 'Change'] = change_six_months
 
@@ -2445,17 +2555,19 @@ class IRS:
       
     #SubIndustry Rank
     if not(sub_industry_index.empty):
-    
       for index, row in sub_industry_index.iterrows():
+        print("change six months for sub industry :", row['SubIndustryIndexName'])
 
         prev_close_list = index_history.loc[(index_history['TICKER']==row['SubIndustryIndexName'])]['CLOSE']
         prev_close = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
 
         current_close_list = sub_industry_index.loc[(sub_industry_index['SubIndustryIndexName']==row['SubIndustryIndexName'])]['Close']
         current_close = current_close_list.item() if len(current_close_list.index) == 1 else np.nan
+        
+        print("current_close: ", current_close)
+        print("prev_close: ", prev_close)
 
-        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) else 0
-
+        change_six_months = (current_close - prev_close) / prev_close * 100 if not pd.isnull(prev_close) and prev_close!=0 else pd.NA
 
         sub_industry_index.loc[index, 'Change'] = change_six_months
 
@@ -2959,7 +3071,7 @@ class IRS:
 
     exportfilename = "IRS.csv"
     exportfile = open(exportfilename,"w")
-    irs_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+    irs_list.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
     exportfile.close()
 
     copy_sql = """
@@ -2980,7 +3092,7 @@ class IRS:
 
     exportfilename = "indexlist_history.csv"
     exportfile = open(exportfilename,"w")
-    index_history.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+    index_history.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
     exportfile.close()
 
     copy_sql = """
@@ -3060,7 +3172,7 @@ class IRS:
 
       exportfilename = "indexlist_history.csv"
       exportfile = open(exportfilename,"w")
-      irs_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator = '\r')
+      irs_list.to_csv(exportfile, header=True, index=False,  lineterminator = '\r')
       exportfile.close()
 
       copy_sql = """
@@ -3204,7 +3316,7 @@ class IRS:
     exportfilename = ""+name+"_export.csv"
     exportfile = open(exportfilename,"w")
 
-    table.to_csv(exportfile, header=True, index=False, float_format="%2f", lineterminator='\r')
+    table.to_csv(exportfile, header=True, index=False,  lineterminator='\r')
     exportfile.close()
 
   def gen_divisor(self,conn,cur,date):

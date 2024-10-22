@@ -69,7 +69,31 @@ def index():
 
 @app.route('/industrymap')
 def industrymap():
-    return render_template('industrymap.html')
+    db = DB_Helper()
+    conn = db.db_connect()
+    cur = conn.cursor()
+    
+    industry_mapping_sql = 'SELECT * FROM public."IndustryMapping";'
+    background_info_sql = 'SELECT * FROM public."BackgroundInfo";'
+
+    # Fetch data into DataFrames
+    industry_mapping_df = pd.read_sql_query(industry_mapping_sql, conn)
+    background_info_df = pd.read_sql_query(background_info_sql, conn)
+
+    # Close the cursor and connection
+    cur.close()
+    conn.close()
+
+    # Get the list of CompanyCode where IndustryCode is missing in IndustryMapping
+    missing_industry_codes = background_info_df[~background_info_df['IndustryCode'].isin(industry_mapping_df['IndustryCode'])]
+
+    missing_industry_code_list = missing_industry_codes['IndustryCode'].unique().tolist()
+
+    # Display the result
+    print("IndustryCodes that are missing:", len(missing_industry_code_list))
+    print("IndustryCodes that are missing:", missing_industry_code_list)
+    
+    return render_template('industrymap.html', missing_count = len(missing_industry_code_list), missing_codes = missing_industry_code_list)
 
 @app.route('/add_industry_mapping', methods=['POST'])
 def add_industry_mapping():

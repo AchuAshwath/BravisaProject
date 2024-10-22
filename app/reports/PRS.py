@@ -745,6 +745,8 @@ class PRS:
 				Change30 = (row["Close"]-thirty_close) if thirty_close is not None else np.nan
 				Change90 = (row["Close"]-ninty_close) if sixy_close is not None else np.nan
 				Change52W = (row["Close"]-year_close) if year_close is not None else np.nan
+				Change52W_Percentage = ((row["Close"] - year_close) / year_close) * 100	if year_close is not None else np.nan
+
 
 			else:
 
@@ -793,6 +795,8 @@ class PRS:
 				Change30 = (row["Close"]-thirty_close) if thirty_close is not None else np.nan
 				Change90 = (row["Close"]-ninty_close) if ninty_close is not None else np.nan
 				Change52W = (row["Close"]-year_close) if year_close is not None else np.nan
+				Change52W_Percentage = ((row["Close"] - year_close) / year_close) * 100	if year_close is not None else np.nan
+
 
 			OffHigh = ((row["52W High"]-row["Close"])/row["52W High"])*100 if year_close is not None else np.nan
 			OffLow = ((row["Close"]-row["52W Low"])/row["52W Low"])*100 if year_close is not None else np.nan
@@ -811,6 +815,7 @@ class PRS:
 			bttlist.loc[index, 'Change30'] = Change30
 			bttlist.loc[index, 'Change90'] = Change90
 			bttlist.loc[index, 'Change52W'] = Change52W
+			bttlist.loc[index, 'Change52WPercentage'] = Change52W_Percentage
 			bttlist.loc[index, 'Off-High'] = OffHigh
 			bttlist.loc[index, 'Off-Low'] = OffLow
 
@@ -1054,7 +1059,7 @@ class PRS:
 		bttlist = self.fetch_btt_prs(curr_date, conn)
 
 		bttlist = pd.concat([bttlist, pd.DataFrame(columns = ['52W High', '52W Low', '52W High Date','52W Low Date', '52W NewHigh', '90D NewHigh',\
-																'30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W',\
+																'30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W','Change52WPercentage',\
 																'Change90', 'Change30', 'RR52W', 'RR90', 'RS52W', 'RS90', 'RS30', 'CombinedRS', 'RR30_Replaced', 'RR60_Replaced', 'RR90_Replaced',\
 																'RR52W_Replaced', 'Off-High', 'Off-Low'])], sort=False)
 
@@ -1082,7 +1087,7 @@ class PRS:
 
 			# creating the column followed by CompanyName
 		bttlist = bttlist[['CompanyName', 'NSECode', 'BSECode', 'Open', 'High', 'Low', 'Close', 'Volume', 'Value', '52W High', '52W Low', '52W High Date',\
-							'52W Low Date', '52W NewHigh', '90D NewHigh', '30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W',\
+							'52W Low Date', '52W NewHigh', '90D NewHigh', '30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W','Change52WPercentage',\
 							'Change90', 'Change30', 'RR52W', 'RR90', 'RS52W', 'RS90', 'RS30', 'CombinedRS', 'ISIN', 'Date', 'RR30_Replaced', 'RR60_Replaced', 'RR90_Replaced',\
 							'RR52W_Replaced', 'Off-High', 'Off-Low', 'CompanyCode',  'Value Average', 'Market Cap Value', 'Market Cap Class', 'Market Cap Rank', 'PE', \
 							'PE High', 'PE High Date', 'PE Low', 'PE Low Date']]

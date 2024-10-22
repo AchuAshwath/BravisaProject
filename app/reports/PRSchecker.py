@@ -745,6 +745,8 @@ class PRS:
 				Change30 = (row["Close"]-thirty_close) if thirty_close is not None else np.nan
 				Change90 = (row["Close"]-ninty_close) if sixy_close is not None else np.nan
 				Change52W = (row["Close"]-year_close) if year_close is not None else np.nan
+				Change52W_Percentage = ((row["Close"] - year_close) / year_close) * 100	if year_close is not None else np.nan
+
 
 			else:
 
@@ -793,6 +795,7 @@ class PRS:
 				Change30 = (row["Close"]-thirty_close) if thirty_close is not None else np.nan
 				Change90 = (row["Close"]-ninty_close) if ninty_close is not None else np.nan
 				Change52W = (row["Close"]-year_close) if year_close is not None else np.nan
+				Change52W_Percentage = ((row["Close"] - year_close) / year_close) * 100	if year_close is not None else np.nan
 
 			OffHigh = ((row["52W High"]-row["Close"])/row["52W High"])*100 if year_close is not None else np.nan
 			OffLow = ((row["Close"]-row["52W Low"])/row["52W Low"])*100 if year_close is not None else np.nan
@@ -811,6 +814,7 @@ class PRS:
 			bttlist.loc[index, 'Change30'] = Change30
 			bttlist.loc[index, 'Change90'] = Change90
 			bttlist.loc[index, 'Change52W'] = Change52W
+			bttlist.loc[index, 'Change52WPercentage'] = Change52W_Percentage                       
 			bttlist.loc[index, 'Off-High'] = OffHigh
 			bttlist.loc[index, 'Off-Low'] = OffLow
 
@@ -1054,48 +1058,53 @@ class PRS:
 		bttlist = self.fetch_btt_prs(curr_date, conn)
 
 		bttlist = pd.concat([bttlist, pd.DataFrame(columns = ['52W High', '52W Low', '52W High Date','52W Low Date', '52W NewHigh', '90D NewHigh',\
-																'30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W',\
+																'30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W', 'Change52WPercentage',\
 																'Change90', 'Change30', 'RR52W', 'RR90', 'RS52W', 'RS90', 'RS30', 'CombinedRS', 'RR30_Replaced', 'RR60_Replaced', 'RR90_Replaced',\
 																'RR52W_Replaced', 'Off-High', 'Off-Low'])], sort=False)
 
 		print("Fetching OHLC Data")
-		bttlist = self.fetch_ohlc_prs(curr_date, bttlist, conn)
+		ohlc = self.fetch_ohlc_prs(curr_date, bttlist, conn)
 		print(bttlist.head())
 
-		if(bttlist['Close'].isnull().all()):
+		if(ohlc['Close'].isnull().all()):
 			print("No OHLC Data for this date")
 			# raise ValueError('OHLC data not found for date:')
 			print("there is no OHLC data, NO PRS for", curr_date)
 
+			highlow = pd.DataFrame()
+			valueAverage = pd.DataFrame()
+			prs_rr = pd.DataFrame()
+			pe_prs = pd.DataFrame()
+
 
 		else:
 			print("Calculating High/Low & Value Avg")
-			bttlist = self.fetch_highlow_prs(curr_date, bttlist, conn)
+			highlow = self.fetch_highlow_prs(curr_date, ohlc, conn)
 
-			bttlist = self.value_average(curr_date, bttlist, conn)
+			valueAverage = self.value_average(curr_date, highlow, conn)
 
 			print("Calculating Relative Rate of change")
-			bttlist = self.prs_rr(curr_date, bttlist, conn)
+			prs_rr = self.prs_rr(curr_date, valueAverage, conn)
 
 			print("Merging with Price Earnings")
-			bttlist = self.merge_pe_prs(bttlist, conn, curr_date)
+			pe_prs = self.merge_pe_prs(prs_rr, conn, curr_date)
 			# print("Duplicate \n", bttlist[bttlist.duplicated()])
 
-			bttlist.round(2)
+			pe_prs.round(2)
 
 				# creating the column followed by CompanyName
-			bttlist = bttlist[['CompanyName', 'NSECode', 'BSECode', 'Open', 'High', 'Low', 'Close', 'Volume', 'Value', '52W High', '52W Low', '52W High Date',\
-								'52W Low Date', '52W NewHigh', '90D NewHigh', '30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W',\
+			pe_prs = pe_prs[['CompanyName', 'NSECode', 'BSECode', 'Open', 'High', 'Low', 'Close', 'Volume', 'Value', '52W High', '52W Low', '52W High Date',\
+								'52W Low Date', '52W NewHigh', '90D NewHigh', '30D NewHigh', '52W NewLow', '90D NewLow', '30D NewLow', 'RR1', 'RR5', 'RR10', 'RR30', 'RR60', 'Change52W','Change52WPercentage',\
 								'Change90', 'Change30', 'RR52W', 'RR90', 'RS52W', 'RS90', 'RS30', 'CombinedRS', 'ISIN', 'Date', 'RR30_Replaced', 'RR60_Replaced', 'RR90_Replaced',\
 								'RR52W_Replaced', 'Off-High', 'Off-Low', 'CompanyCode',  'Value Average', 'Market Cap Value', 'Market Cap Class', 'Market Cap Rank', 'PE', \
 								'PE High', 'PE High Date', 'PE Low', 'PE Low Date']]
 
 			print("Inserting into PRS Table")
-			self.insert_prs(bttlist, conn)
+			self.insert_prs(pe_prs, conn)
 
 			print("Calculating NHNL Totals")
-			self.insert_nhnl(bttlist, conn)
+			self.insert_nhnl(pe_prs, conn)
 
 			print('-------------------------------------------------------------------------------')
-		return bttlist
+		return ohlc, highlow, valueAverage, prs_rr, pe_prs
 
