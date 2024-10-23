@@ -38,6 +38,6 @@ cd BravisaProject
 First install Postgres and PgAdmin, [Download Postgres](https://www.postgresql.org/download/).
 ```bash
 psql -h your_host -U your_username -d your_database -f create_tables.sql
-# DBsetup.ipynb includes the script to create schemas and tables
+# setup.ipynb includes the script to create schemas and tables
 # Run this cell to create all the tables and schemas 
 ```
