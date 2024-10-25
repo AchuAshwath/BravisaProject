@@ -3488,7 +3488,7 @@ class IRS:
     print("Generating IRS for today: ", curr_date)
     gen_date = curr_date.strftime("%Y-%m-%d")
     btt_list, ohlc, btt_ohlc_merge, ohlc_change, ohlc_backgroundinfo_merge, industry_merge, industry_list_calc_free_float, industry_list_ff_ohlc, industry_list = self.gen_industry_list(conn,cur,gen_date)
-    self.export_table("returnval", ohlc)
+    # self.export_table("returnval", ohlc)
 
     if not(ohlc.empty):
       master_list, sector_divisor, subsector_divisor, industry_divisor, sub_industry_divisor, sector_divisor_index, subsector_divisor_index, industry_divisor_index, sub_industry_divisor_index = self.gen_divisor(conn,cur,gen_date)
@@ -3540,10 +3540,10 @@ class IRS:
       # check if the variables are None type
     else:
       print("\t\t\nIRS could not be generated - No OHLC data for: ", gen_date, "\n")
-      exportfilename = "IRS_NOOHLC.csv"
-      exportfile = open(exportfilename ,"a+")
-      exportfile.write("IRS could not be generated - No OHLC data for: "+ gen_date+ "\n")
-      exportfile.close()
+      # exportfilename = "IRS_NOOHLC.csv"
+      # exportfile = open(exportfilename ,"a+")
+      # exportfile.write("IRS could not be generated - No OHLC data for: "+ gen_date+ "\n")
+      # exportfile.close()
 
       sector_divisor = pd.DataFrame()
       subsector_divisor = pd.DataFrame()

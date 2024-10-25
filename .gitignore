@@ -14,3 +14,12 @@ app/mf_analysis/market_quality_number/__pycache__/
 app/__pycache__/
 app/Test_reports/__pycache__/
 app/lib/__pycache__/
+app/lib/__pycache__/__init__.cpython-312.pyc
+app/lib/__pycache__/index_ohlc.cpython-312.pyc
+app/lib/__pycache__/ohlc.cpython-312.pyc
+app/lib/__pycache__/split_bonus.cpython-312.pyc
+app/utils/__pycache__/__init__.cpython-312.pyc
+app/utils/__pycache__/check_helper.cpython-312.pyc
+app/utils/__pycache__/date_set.cpython-312.pyc
+app/utils/__pycache__/db_helper.cpython-312.pyc
+app/utils/__pycache__/db_helper.cpython-312.pyc

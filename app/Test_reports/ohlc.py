@@ -516,7 +516,7 @@ def btt_fix(ohlc_full, curr_date,conn):
     print("bttlist : ",len(bttlist))
     # print(len(ohlc_full[ohlc_full["CompanyCode"].isnull()]))
     # filter ohlc_full where CompanyCode is null
-    coco_null_ohlc_full = ohlc_full[ohlc_full[["CompanyCode", "NSECode", "BSECode"]].isnull().any(axis=1)]
+    coco_null_ohlc_full = ohlc_full[ohlc_full[["CompanyCode"]].isnull().any(axis=1)]
     coco_null_ohlc_full = pd.DataFrame(coco_null_ohlc_full)  # Convert to DataFrame
     print("initial companycode nulls in ohlc : ",len(coco_null_ohlc_full))
 
@@ -545,6 +545,7 @@ def btt_fix(ohlc_full, curr_date,conn):
                 if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
 
                     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
+                print("CompanyCode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0]) 
                 count = count + 1
         elif bsecode is not None:
             btt_data = bttlist[bttlist["BSECode"] == bsecode]
@@ -556,6 +557,7 @@ def btt_fix(ohlc_full, curr_date,conn):
             # # if coco_null_ohlc_full.loc[index, 'ISIN'].isnull():
             # if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
             #     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
+            print("CompanyCode has been replaced for ", bsecode, 'as ', btt_data['CompanyCode'].values[0])
             count = count + 1   
 
         # repalce coco_null_ohlc_full with the updated values in the ohlc_full
@@ -571,7 +573,7 @@ def btt_fix(ohlc_full, curr_date,conn):
     #                       ohlc_full['ISIN'].isin(bttlist['ISIN'])]
     # print("btt_ohlc : ",len(btt_ohlc))
 
-    null_btt_ohlc = ohlc_full[ohlc_full[["CompanyCode", "NSECode", "BSECode"]].isnull().any(axis=1)]
+    null_btt_ohlc = ohlc_full[ohlc_full[["CompanyCode"]].isnull().any(axis=1)]
     print("null_btt_ohlc : ",len(null_btt_ohlc))
     for index, row in null_btt_ohlc.iterrows():
         nsecode = row['NSECode']
@@ -783,9 +785,9 @@ def main(curr_date):
     insert_bse(ohlc_bse, conn, cur)
 
     if(not(ohlc_nse is None or ohlc_bse is None)):
-        ohlc_full = ohlc_join(ohlc_nse, ohlc_bse, conn, cur)
-        ohlc_full = merge_background(ohlc_full, conn)
-        ohlc_full = btt_fix(ohlc_full, curr_date,conn)
+        ohlc_joined = ohlc_join(ohlc_nse, ohlc_bse, conn, cur)
+        ohlc_bg = merge_background(ohlc_joined, conn)
+        ohlc_full = btt_fix(ohlc_bg, curr_date,conn)
         insert_ohlc(ohlc_full, conn, cur)
         # print(ohlc_full)
 
@@ -796,4 +798,4 @@ def main(curr_date):
     conn.commit()
     print("\n\t\t OHLC Fetch Completed.")
     conn.close()
-    return "OHLC"
+    return ohlc_nse, ohlc_bse, ohlc_joined, ohlc_bg,  ohlc_full
