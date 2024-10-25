@@ -21,7 +21,7 @@ import rootpath
 
 
 if os.name =='nt':
-    my_path = os.path.abspath(os.path.dirname('D:\\Desktop Copy\\Braviza\\app\\'))  # working directory
+    my_path =os.getcwd()  # working directory
     filepath = os.path.join(my_path, "IndexOHLCFiles\\")
     print("File path : ",filepath)
 else:

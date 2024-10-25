@@ -12,3 +12,5 @@ app/reports/__pycache__/
 app/utils/__pycache__/
 app/mf_analysis/market_quality_number/__pycache__/
 app/__pycache__/
+app/Test_reports/__pycache__/
+app/lib/__pycache__/

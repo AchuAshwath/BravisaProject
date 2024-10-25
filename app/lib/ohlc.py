@@ -23,8 +23,8 @@ import rootpath
 #            'NSE-TEST-1': '1826627594.20480.0000'}
 
 if os.name == 'nt':
-    my_path = os.path.abspath(os.path.dirname('D:\\Desktop Copy\\Braviza\\app\\'))
-    filepath = os.path.join(my_path, "OHLCFiles\\")
+    my_path = os.getcwd()
+    filepath = os.path.join(my_path, "OHLCFiles\\OHLCFiles\\")
     print("File Path :",filepath)
 else:
     my_path = rootpath.detect()
@@ -44,12 +44,17 @@ def fetch_bse(conn, cur, curr_date):
     Uncomment the next line to run it from a new file.
     File format example : EQ_ISINCODE_150722_New.csv                                                                      
     '''
-    # csv_file = filepath+'EQ_ISINCODE_' + download_date + '_New' + '.CSV'
+    download_date_bse = curr_date.strftime("%d%m%y")
+    old_csv_file = filepath+'EQ_ISINCODE_' + download_date_bse  + '.CSV'
 
-    print("bse file : ", csv_file)
-
-    table = pd.read_csv(csv_file)
-
+    
+    try:
+        table = pd.read_csv(csv_file)
+        print("bse file : ", csv_file)
+    except FileNotFoundError:
+        table = pd.read_csv(old_csv_file)
+        print("bse file : ", csv_file)
+                            
     bse_changed_format_dictionary = {'FinInstrmId' : 'SC_CODE', 'TckrSymb': 'SC_NAME','SctySrs': 'SC_GROUP', 'OpnPric':'OPEN',	'HghPric' :'HIGH',	
                                     'LwPric' : 'LOW', 'ClsPric' : 'CLOSE','LastPric' : 'LAST',	'PrvsClsgPric' : 'PREVCLOSE', 'TtlNbOfTxsExctd' : 'NO_TRADES',
                                     'TtlTradgVol' : 'NO_OF_SHRS','TtlTrfVal':'NET_TURNOV',  'ISIN':'ISIN_CODE', 'TradDt':'TRADING_DATE'}
@@ -103,9 +108,17 @@ def fetch_nse(conn, cur, curr_date):
     download_date = curr_date.strftime("%Y%m%d").upper()
 
     csv_file = filepath+"BhavCopy_NSE_CM_0_0_0_"+download_date+"_F_0000.csv" #+"\\cm"+download_date+"bhav.csv" "BhavCopy_NSE_CM_0_0_0_20240711_F_0000.csv"
-    print("nse file : ", csv_file)
-    table = pd.read_csv(csv_file)
-
+    
+    download_date_nse = curr_date.strftime("%d%b%Y").upper()
+    old_csv_file = filepath+"CM"+download_date_nse+"BHAV.CSV"
+    
+    try:
+        table = pd.read_csv(csv_file)
+        print("nse file : ", csv_file)
+    except FileNotFoundError:
+        table = pd.read_csv(old_csv_file)
+        print("nse file : ", csv_file)
+        
     nse_changed_format_dictionary = {'TckrSymb' : 'SYMBOL', 'SctySrs': 'SERIES','OpnPric': 'OPEN', 	'HghPric' :'HIGH',	'LwPric':'LOW',	'ClsPric' :'CLOSE',	
                                      'LastPric' : 'LAST', 'PrvsClsgPric' : 'PREVCLOSE','TtlTradgVol' : 'TOTTRDQTY',	'TtlTrfVal' : 'TOTTRDVAL', 'TradDt' : 'TIMESTAMP',
                                      'TtlNbOfTxsExctd' : 'TOTALTRADES','ISIN':'ISIN'}
