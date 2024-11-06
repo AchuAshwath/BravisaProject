@@ -479,7 +479,10 @@ def merge_background(table_ohlc, conn):
 
     table_ohlc = pd.merge(table_ohlc, background_info[['CompanyCode', 'ISINCode']], left_on='ISIN', right_on='ISINCode',
                           how='left')
-
+    # get the null values in the CompanyCode column
+    null_company_codes = table_ohlc.loc[table_ohlc['CompanyCode'].isnull()]
+    print("nulls while merging", len(null_company_codes))
+    print(null_company_codes['ISIN'])
     table_ohlc = table_ohlc.astype({"BSECode": str})
     table_ohlc["BSECode"] = table_ohlc["BSECode"].replace('0', np.nan)
 
@@ -513,7 +516,17 @@ def btt_fix(ohlc_full, curr_date,conn):
     WHERE "BTTDate" >= %s AND "BTTDate" < %s
     """
     bttlist = pd.read_sql_query(btt_sql, con=conn, params=(BTT_back, BTT_next))
-    print("bttlist : ",len(bttlist))
+    # print("bttlist : ",len(bttlist))
+        # get ohlc for bttlist
+    btt_ohlc = bttlist[bttlist['CompanyCode'].isin(ohlc_full['CompanyCode'])]
+    print('bttlist : ',len(bttlist))
+    print("btt_ohlc : ",len(btt_ohlc))
+    print('difference : ',len(bttlist)-len(btt_ohlc))
+    
+    #mising CompanyCode in bttlist
+    missing_companycode = bttlist[~bttlist['CompanyCode'].isin(ohlc_full['CompanyCode'])]
+    # print("missing_companycode : ",missing_companycode['CompanyCode'])
+    
     # print(len(ohlc_full[ohlc_full["CompanyCode"].isnull()]))
     # filter ohlc_full where CompanyCode is null
     coco_null_ohlc_full = ohlc_full[ohlc_full[["CompanyCode"]].isnull().any(axis=1)]
@@ -545,7 +558,7 @@ def btt_fix(ohlc_full, curr_date,conn):
                 if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
 
                     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-                print("CompanyCode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0]) 
+                # print("CompanyCode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0]) 
                 count = count + 1
         elif bsecode is not None:
             btt_data = bttlist[bttlist["BSECode"] == bsecode]
@@ -557,13 +570,15 @@ def btt_fix(ohlc_full, curr_date,conn):
             # # if coco_null_ohlc_full.loc[index, 'ISIN'].isnull():
             # if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
             #     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-            print("CompanyCode has been replaced for ", bsecode, 'as ', btt_data['CompanyCode'].values[0])
+            # print("CompanyCode has been replaced for ", bsecode, 'as ', btt_data['CompanyCode'].values[0])
             count = count + 1   
 
         # repalce coco_null_ohlc_full with the updated values in the ohlc_full
         ohlc_full.update(coco_null_ohlc_full)
     print("ohlc_full : ",len(ohlc_full))
     print("count count replaced in bttlist : ", count)
+    
+    
     
     count = 0
 
@@ -608,7 +623,23 @@ def btt_fix(ohlc_full, curr_date,conn):
     ohlc_full = ohlc_full.drop_duplicates(subset=['CompanyCode'])
     print("ohlc_full : ",len(ohlc_full))
     print("count count replaced in backgrounndinfo : ", count)
-
+    
+    print('bttlist : ',len(bttlist))
+    
+    # rows of ohlc_full which matche with bttlist based on CompanyCode, ISIN
+    btt_ohlc = ohlc_full[ohlc_full['CompanyCode'].isin(bttlist['CompanyCode']) | 
+                          ohlc_full['ISIN'].isin(bttlist['ISIN'])]
+    print('btt_ohlc : ',len(btt_ohlc))
+    
+    # nulls of btt_ohlc based on CompanyCode
+    null_btt_ohlc = btt_ohlc[btt_ohlc["CompanyCode"].isnull()]
+    print('null_btt_ohlc : ',len(null_btt_ohlc))
+    if(len(null_btt_ohlc)>0):
+        print(null_btt_ohlc['CompanyCode'], "nulls in CompanyCode")
+    elif(len(null_btt_ohlc)==0):
+        print("No nulls in CompanyCode")
+        
+    print(null_btt_ohlc['CompanyCode'])
     return ohlc_full
 
 # def btt_fix(ohlc_full, curr_date, conn):
