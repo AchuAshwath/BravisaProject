@@ -4,6 +4,8 @@ CREATE SCHEMA IF NOT EXISTS "Reports"
 CREATE SCHEMA IF NOT EXISTS dash_process
     AUTHORIZATION postgres;
 
+CREATE SCHEMA IF NOT EXISTS logs
+    AUTHORIZATION postgres;
 
 CREATE SCHEMA IF NOT EXISTS mf_analysis
     AUTHORIZATION postgres;
@@ -3165,4 +3167,57 @@ CREATE TABLE "Reports"."IRS"
     "PE Low Date" date
 );
 
+CREATE TABLE "logs"."report_generation"
+(
+    "date" date,
+    "file_presence" boolean,
+    "BTTList" boolean,
+    "EPS" boolean,
+    "EERS" boolean,
+    "SMR" boolean,
+    "OHLC" boolean,
+    "IndexOHLC" boolean,
+    "PE" boolean,
+    "PRS" boolean,
+    "IRS" boolean,
+    "time" time without time zone
+    "runtime" interval
+)
+
+CREATE TABLE "logs"."insert"
+(
+    "Date" date,
+    "FB3" boolean,
+    "FB1" boolean,
+    "FB2" boolean,
+    "time" time without time zone
+    "runtime" interval
+)
+
+CREATE TABLE "logs"."split_bonus"
+(
+    "date" date, 
+    "time" time without time zone,
+    "CompanyCode" double precision,
+    "CompanyName" character varying,
+    "split_value" double precision,
+    "bonus_value" double precision,
+    "ShareHolding_Total" double precision,
+    "split_date" date,
+    "bonus_date" date
+    "split_bonus_count" character varying,
+    "runtime" interval
+)
+
+CREATE TABLE "logs"."OHLC"
+(
+    "date" date,
+    "time" time without time zone,
+    "BTT_count" double precision,
+    "OHLC_count" double precision,
+    "BTT_OHLC_count" double precision,
+    "nse_file" character varying,
+    "bse_file" character varying,
+    "runtime" interval
+)
 
