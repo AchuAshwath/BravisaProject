@@ -15,6 +15,7 @@ import time
 import math
 from datetime import timedelta
 import utils.date_set as date_set
+from utils.logs import insert_logs
 
 
 def get_splits(date, conn):
@@ -35,6 +36,7 @@ def get_bonus(date, conn):
 
 def update_ohlc(split, bonus, conn, cur, date):
     if not(split.empty):
+
         update_sql = f'''UPDATE public."OHLC" ohlc
                         SET
                           "Open" = "Open" / split_val,
@@ -54,6 +56,7 @@ def update_ohlc(split, bonus, conn, cur, date):
         print("No split data for today")
 
     if not(bonus.empty):
+
         update_sql = f'''UPDATE public."OHLC" ohlc
                         SET
                           "Open" = "Open" / (1 + bonus_val),
@@ -72,11 +75,117 @@ def update_ohlc(split, bonus, conn, cur, date):
     else:
         print("No bonus data for today")
 
-
-
-def update_shareholding(split, bonus, conn, cur, date):
+def log_split(split,  date, runtime, conn, cur):
     if not(split.empty):
-        print("Split data:", split)
+        for index, row in split.iterrows():
+            shareholding_sql = f"""SELECT sh.*
+                            FROM public."ShareHolding" sh
+                            JOIN (
+                                SELECT *
+                                FROM public."Splits"
+                                WHERE "XSDate" = '{date}'
+                            ) AS split ON sh."CompanyCode" = split."CompanyCode"
+                            WHERE sh."SHPDate" = (
+                                SELECT MAX("SHPDate")
+                                FROM public."ShareHolding"
+                                WHERE "CompanyCode" = split."CompanyCode"
+                                AND "SHPDate" <= '{date}'
+                            )
+                            AND split."XSDate" >= sh."SHPDate";"""
+            shareholding = sqlio.read_sql_query(shareholding_sql, con=conn)
+            
+            # get the row of shareholding where CompanyCode = row["CompanyCode"]
+            shareholding_row = shareholding.loc[shareholding["CompanyCode"] == row["CompanyCode"]]
+            
+            print(shareholding_row)
+            if (shareholding_row.empty):
+                print("No shareholding data for company code", row["CompanyCode"])
+                LOGS= {
+                    "log_date": date,
+                    "log_time": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "CompanyCode": row["CompanyCode"],
+                    "split_value": row["OldFaceValue"]/row["NewFaceValue"],
+                    "bonus_value": 0,
+                    "OLD_OS": 0,
+                    "NEW_OS": 0,
+                    "runtime": runtime
+                }
+                print("Split log:", LOGS)
+                insert_logs("split_bonus", [LOGS], conn, cur)
+                
+            else:
+            
+                LOGS= {
+                    "log_date": date,
+                    "log_time": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "CompanyCode": row["CompanyCode"],
+                    "split_value": row["OldFaceValue"]/row["NewFaceValue"],
+                    "bonus_value": 0,
+                    "OLD_OS": shareholding_row["Total"].values[0],
+                    "NEW_OS": shareholding_row["Total"].values[0] * (row["OldFaceValue"]/row["NewFaceValue"]),
+                    "runtime": runtime
+                }
+                print("Split log:", LOGS)
+                            
+                insert_logs("split_bonus", [LOGS], conn, cur)
+
+def log_bonus( bonus, date, runtime, conn, cur):
+    if not(bonus.empty):
+        for index, row in bonus.iterrows():
+            shareholding_sql = f"""SELECT sh.*
+                            FROM public."ShareHolding" sh
+                            JOIN (
+                                SELECT *
+                                FROM public."Bonus"
+                                WHERE "XBDate" = '{date}'
+                            ) AS bonus ON sh."CompanyCode" = bonus."CompanyCode"
+                            WHERE sh."SHPDate" = (
+                                SELECT MAX("SHPDate")
+                                FROM public."ShareHolding"
+                                WHERE "CompanyCode" = bonus."CompanyCode"
+                                AND "SHPDate" <= '{date}'
+                            )
+                            AND bonus."XBDate" >= sh."SHPDate";"""
+            shareholding = sqlio.read_sql_query(shareholding_sql, con=conn)
+            
+            shareholding_row = shareholding.loc[shareholding["CompanyCode"] == row["CompanyCode"]]
+            # print(shareholding_row)
+            if (shareholding_row.empty):
+                print("No shareholding data for company code", row["CompanyCode"])
+                
+                LOGS= {
+                    "log_date": date,
+                    "log_time": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "CompanyCode": row["CompanyCode"],
+                    "split_value": 0,
+                    "bonus_value": 1+ (row["RatioOfferred"]/row["RatioExisting"]),
+                    "OLD_OS": 0,
+                    "NEW_OS": 0,
+                    "runtime": runtime
+                }
+                print("Bonus log:", LOGS)
+                insert_logs("split_bonus", [LOGS], conn, cur)
+                
+            else:
+                
+                LOGS= {
+                    "log_date": date,
+                    "log_time": datetime.datetime.now().strftime("%H:%M:%S"),
+                    "CompanyCode": row["CompanyCode"],
+                    "split_value": 0,
+                    "bonus_value": 1+ (row["RatioOfferred"]/row["RatioExisting"]),
+                    "OLD_OS": shareholding_row["Total"].values[0],
+                    "NEW_OS": shareholding_row["Total"].values[0] * (1+ (row["RatioOfferred"]/row["RatioExisting"])),
+                    "runtime": runtime
+                }
+                
+                insert_logs("split_bonus", [LOGS], conn, cur)
+            
+
+def update_shareholding(split, bonus, conn, cur, date, runtime):
+    if not(split.empty):
+        log_split(split, date, runtime, conn, cur)
+        # print("Split data:", split)
         update_sql = f'''
         UPDATE public."ShareHolding" sh
         SET
@@ -122,16 +231,17 @@ def update_shareholding(split, bonus, conn, cur, date):
                               FROM public."ShareHolding" 
                               WHERE "CompanyCode" = split."CompanyCode" 
                               AND "SHPDate" <= '{date}')
-          AND split."XSDate" > sh."SHPDate"; 
+          AND split."XSDate" >= sh."SHPDate"; 
         '''
-        print("Executing SQL:\n", update_sql)
+        # print("Executing SQL:\n", update_sql)
         cur.execute(update_sql)
         conn.commit()
     else:
         print("No split data for today")
 
     if not(bonus.empty):
-        print("Bonus data:", bonus)
+        log_bonus( bonus, date, runtime, conn, cur)
+        # print("Bonus data:", bonus)
         update_sql = f'''
         UPDATE public."ShareHolding" sh
         SET
@@ -176,18 +286,19 @@ def update_shareholding(split, bonus, conn, cur, date):
                               FROM public."ShareHolding" 
                               WHERE "CompanyCode" = bonus."CompanyCode" 
                               AND "SHPDate" <= '{date}')
-          AND bonus."XBDate" > sh."SHPDate"; 
+          AND bonus."XBDate" >= sh."SHPDate"; 
         '''
-        print("Executing SQL:\n", update_sql)
+        # print("Executing SQL:\n", update_sql)
         cur.execute(update_sql)
         conn.commit()
     else:
         print("No bonus data for today")
 
 
+    
 
 def main(curr_date):
-
+    start_time = time.time()
     conn = DB_Helper().db_connect()
     cur = conn.cursor()
 
@@ -202,7 +313,12 @@ def main(curr_date):
     print("Updating OHLC")
     update_ohlc(split, bonus, conn, cur, curr_date)
 
+    end_time = time.time()
+    runtime = end_time - start_time
+    
+    # log_split_bonus(split, bonus, curr_date, runtime, conn, cur)
+    
     print("Updating Shareholding")
-    update_shareholding(split, bonus, conn, cur, curr_date)
-
+    update_shareholding(split, bonus, conn, cur, curr_date, runtime)
+    
     conn.close()

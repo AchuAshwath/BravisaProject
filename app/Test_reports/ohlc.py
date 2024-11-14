@@ -1,52 +1,44 @@
-
 # Script for fetching and inserting OHLC data
 import datetime
-import requests
 import os.path
 import os
 from utils.db_helper import DB_Helper
 from utils.check_helper import Check_Helper
-from zipfile import ZipFile
-import csv
-import psycopg2
 import pandas as pd
-import calendar
 import numpy as np
 import pandas.io.sql as sqlio
-import utils.date_set as date_see
 import time
-import rootpath
+from utils.logs import insert_logs
 
-# headers = {'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', 'Connection': 'keep-alive', 'Content-Type': 'application/zip', 'Referer': 'https://www.nseindia.com/products/content/derivatives/equities/archieve_fo.htm',
-#            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.71 Safari/537.36', 'X-frame-options': 'SAMEORIGIN'}
-# cookies = {'pointer': '1', 'sym1': 'KPIT',
-#            'NSE-TEST-1': '1826627594.20480.0000'}
+LOGS = {
+    "log_date": None,
+    "log_time": None,
+    "BTT_count": None,
+    "ISIN_matches" : None,
+    "BTT_fix": None,
+    "OHLC_with_CompanyCode": None,
+    "OHLC_count": None,
+    "nse_file": None,
+    "bse_file": None,
+    "runtime": None
+}
 
 if os.name == 'nt':
     my_path = os.getcwd()
     filepath = os.path.join(my_path, "OHLCFiles\\OHLCFiles\\")
     print("File Path :",filepath)
-else:
-    my_path = rootpath.detect()
-    filepath = os.path.join(my_path, "ohlc-files/")
-
 
 # Function to fetch BSE OHLC daily file and store it in provided file path
-def fetch_bse(conn, cur, curr_date):
+def fetch_bse(curr_date):
     
     download_date = curr_date.strftime("%Y%m%d")         
-    # print("download date\t",download_date)
 
-    print("\n\nBSE Fetch invoked ....")
-
+    print("\n\nBSE Fetch invoked for date : ", download_date)
     csv_file = filepath+ 'BhavCopy_BSE_CM_0_0_0_' + download_date + '_F_0000.csv'  #"BhavCopy_BSE_CM_0_0_0_20240709_F_0000"
-    ''' 
-    Uncomment the next line to run it from a new file.
-    File format example : EQ_ISINCODE_150722_New.csv                                                                      
-    '''
+
     download_date_bse = curr_date.strftime("%d%m%y")
     old_csv_file = filepath+'EQ_ISINCODE_' + download_date_bse  + '.CSV'
-
+    
     
     try:
         table = pd.read_csv(csv_file)
@@ -54,6 +46,8 @@ def fetch_bse(conn, cur, curr_date):
     except FileNotFoundError:
         table = pd.read_csv(old_csv_file)
         print("bse file : ", csv_file)
+    
+    LOGS["bse_file"] = csv_file
                             
     bse_changed_format_dictionary = {'FinInstrmId' : 'SC_CODE', 'TckrSymb': 'SC_NAME','SctySrs': 'SC_GROUP', 'OpnPric':'OPEN',	'HghPric' :'HIGH',	
                                     'LwPric' : 'LOW', 'ClsPric' : 'CLOSE','LastPric' : 'LAST',	'PrvsClsgPric' : 'PREVCLOSE', 'TtlNbOfTxsExctd' : 'NO_TRADES',
@@ -71,8 +65,6 @@ def fetch_bse(conn, cur, curr_date):
     table = table.drop(columns_to_remove, axis=1)
     table = table[['SC_CODE', 'SC_NAME', 'SC_GROUP', 'SC_TYPE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST',
                    'PREVCLOSE', 'NO_TRADES', 'NO_OF_SHRS', 'NET_TURNOV', 'TDCLOINDI', 'ISIN_CODE', 'TRADING_DATE']]
-
-    # os.remove(csv_file)
 
     return table
 
@@ -100,10 +92,8 @@ def insert_bse(table, conn, cur):
     os.remove(exportfilename)
 
 # # Function to fetch NSE OHLC daily file and store it in provided file path
-
-
-def fetch_nse(conn, cur, curr_date):
-    print("\n\nNSE Fetch invoked ....")
+def fetch_nse( curr_date):
+    print("\n\nNSE Fetch invoked for date : ", curr_date)
 
     download_date = curr_date.strftime("%Y%m%d").upper()
 
@@ -118,6 +108,8 @@ def fetch_nse(conn, cur, curr_date):
     except FileNotFoundError:
         table = pd.read_csv(old_csv_file)
         print("nse file : ", csv_file)
+    
+    LOGS["nse_file"] = csv_file
         
     nse_changed_format_dictionary = {'TckrSymb' : 'SYMBOL', 'SctySrs': 'SERIES','OpnPric': 'OPEN', 	'HghPric' :'HIGH',	'LwPric':'LOW',	'ClsPric' :'CLOSE',	
                                      'LastPric' : 'LAST', 'PrvsClsgPric' : 'PREVCLOSE','TtlTradgVol' : 'TOTTRDQTY',	'TtlTrfVal' : 'TOTTRDVAL', 'TradDt' : 'TIMESTAMP',
@@ -134,7 +126,6 @@ def fetch_nse(conn, cur, curr_date):
     table = table[table.SERIES.isin(["EQ", "BZ", "BE", "RR", "IV"])]
     table = table[['SYMBOL', 'SERIES', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST',
                    'PREVCLOSE', 'TOTTRDQTY', 'TOTTRDVAL', 'TIMESTAMP', 'TOTALTRADES', 'ISIN']]
-    # os.remove(csv_file)
 
     return table
 
@@ -162,272 +153,6 @@ def insert_nse(table, conn, cur):
     print("NSE Insert Completed")
     os.remove(exportfilename)
 
-
-# def ohlc_join(ohlc_nse, ohlc_bse, conn, cur):
-
-#     table_ohlc = pd.merge(ohlc_nse, ohlc_bse, left_on='ISIN',
-#                           right_on='ISIN_CODE', how='outer')
-#     table_ohlc["ISIN"].fillna(table_ohlc["ISIN_CODE"], inplace=True)
-#     table_ohlc["OPEN_x"].fillna(table_ohlc["OPEN_y"], inplace=True)
-#     table_ohlc["HIGH_x"].fillna(table_ohlc["HIGH_y"], inplace=True)
-#     table_ohlc["LOW_x"].fillna(table_ohlc["LOW_y"], inplace=True)
-#     table_ohlc["CLOSE_x"].fillna(table_ohlc["CLOSE_y"], inplace=True)
-#     table_ohlc["LAST_x"].fillna(table_ohlc["LAST_y"], inplace=True)
-#     table_ohlc["PREVCLOSE_x"].fillna(table_ohlc["PREVCLOSE_y"], inplace=True)
-#     table_ohlc["TIMESTAMP"].fillna(table_ohlc["TRADING_DATE"], inplace=True)
-#     table_ohlc["TOTTRDVAL"].fillna(table_ohlc["NET_TURNOV"], inplace=True)
-#     table_ohlc["TOTTRDQTY"].fillna(table_ohlc["NO_OF_SHRS"], inplace=True)
-
-#     table_ohlc.rename(columns={'SC_NAME': 'Company',  'SC_CODE': 'BSECode', 'SYMBOL': 'NSECode',
-#                                'OPEN_x': 'Open', 'HIGH_x': 'High', 'LOW_x': 'Low', 'CLOSE_x': 'Close', 'LAST_x': 'Last',
-#                                'PREVCLOSE_x': 'PrevClose', 'TIMESTAMP': 'Date', 'TOTTRDVAL': 'Value', 'TOTTRDQTY': 'Volume'}, inplace=True)
-
-#     table_columns = ['Company', 'BSECode', 'NSECode', 'ISIN',
-#                      'Open', 'High', 'Low', 'Close', 'Date', 'Value', 'Volume']
-#     csv_columns = list(table_ohlc.columns.values)
-#     columns_to_remove = [x for x in csv_columns if x not in table_columns]
-#     table_ohlc = table_ohlc.drop(columns_to_remove, axis=1)
-#     table_ohlc = table_ohlc[["Company",  "NSECode", "BSECode", "ISIN",
-#                              "Open", "High", "Low", "Close", "Date", "Value", "Volume"]]
-
-#     table_ohlc["BSECode"].fillna(-1, inplace=True)
-#     table_ohlc = table_ohlc.astype({"BSECode": int})
-#     table_ohlc = table_ohlc.astype({"BSECode": str})
-#     table_ohlc["BSECode"] = table_ohlc["BSECode"].replace('-1', np.nan)
-#     table_ohlc = table_ohlc.astype({"Volume": int})
-
-#     return table_ohlc
-
-
-# def merge_background(table_ohlc, conn):
-#     # Assuming you have necessary imports and connections set up
-    
-#     # Fetching background info from the database
-#     sql_background = 'SELECT * FROM public."BackgroundInfo" ;'
-#     background_info = pd.read_sql_query(sql_background, con=conn)
-    
-#     # Merging the dataframes
-#     table_ohlc = pd.merge(table_ohlc, background_info[['CompanyCode', 'ISINCode']], 
-#                            left_on='ISIN', right_on='ISINCode', how='left')
-    
-#     # Checking for null CompanyCode in table_ohlc after merging
-#     null_company_codes = table_ohlc.loc[table_ohlc['CompanyCode'].isnull(), ['BSECode']]
-    
-#     # Mapping CompanyCode if BSECode matches
-#     for index, row in null_company_codes.iterrows():
-#         bse_code = row['BSECode']
-#         if not pd.isnull(bse_code):
-#             matching_row = background_info[background_info['BSECode'] == bse_code]
-#             if not matching_row.empty:
-#                 table_ohlc.at[index, 'CompanyCode'] = matching_row.iloc[0]['CompanyCode']
-
-    
-#     return table_ohlc
-
-
-# def merge_background(table_ohlc, conn):
-
-#     sql_background = 'SELECT * FROM public."BackgroundInfo" ;'
-#     background_info = sqlio.read_sql_query(sql_background, con=conn)
-
-#     table_ohlc["BSECode"].fillna(0, inplace=True)
-#     table_ohlc = table_ohlc.astype({"BSECode": int})
-
-#     table_ohlc = pd.merge(table_ohlc, background_info[['CompanyCode', 'ISINCode']], left_on='ISIN', right_on='ISINCode',
-#                           how='left')
-
-#     table_ohlc = table_ohlc.astype({"BSECode": str})
-#     table_ohlc["BSECode"] = table_ohlc["BSECode"].replace('0', np.nan)
-
-#     return table_ohlc
-
-
-# def btt_fix(ohlc_full, curr_date, conn):
-#     today = curr_date
-#     BTT_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
-#     count = 0
-#     next_month = today.month + 1 if today.month + 1 <= 12 else 1
-#     next_year = today.year if today.month + 1 <= 12 else today.year + 1
-#     BTT_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
-
-#     btt_sql = """
-#     SELECT *
-#     FROM "BTTList"
-#     WHERE "BTTDate" >= %s AND "BTTDate" < %s
-#     """
-#     bttlist = pd.read_sql_query(btt_sql, con=conn, params=(BTT_back, BTT_next))
-
-#     ohlc_full["BSECode"].fillna(0, inplace=True)
-#     ohlc_full = ohlc_full.astype({"BSECode": int})
-
-#     coco_null_ohlc_full = ohlc_full[ohlc_full["CompanyCode"].isnull()]
-
-#     for index, row in coco_null_ohlc_full.iterrows():
-#         nsecode = row['NSECode']
-#         bsecode = row['BSECode']
-#         isin = row['ISIN']
-
-#         if nsecode is not None:
-#             btt_data = bttlist[bttlist["NSECode"] == nsecode]
-#             if not btt_data.empty:
-#                 coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-#                 coco_null_ohlc_full.loc[index, 'BSECode'] = btt_data['BSECode'].values[0]
-#                 if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
-#                     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-#                 count += 1
-#         elif bsecode is not None:
-#             btt_data = bttlist[bttlist["BSECode"] == bsecode]
-#             coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-#             coco_null_ohlc_full.loc[index, 'NSECode'] = btt_data['NSECode'].values[0]
-#             if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
-#                 coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-
-#     ohlc_full.update(coco_null_ohlc_full)
-
-#     null_btt_ohlc = coco_null_ohlc_full[coco_null_ohlc_full["CompanyCode"].isnull()]
-
-#     for index, row in null_btt_ohlc.iterrows():
-#         bsecode = row['BSECode']
-
-#         background_info_sql = """
-#         SELECT * FROM public."BackgroundInfo"
-#         WHERE "BSECode" = %s
-#         """
-#         background_info = pd.read_sql_query(background_info_sql, con=conn, params=(bsecode,))
-
-#         if not background_info.empty:
-#             ohlc_full.at[index, 'CompanyCode'] = background_info['CompanyCode'].values[0]
-#             ohlc_full.at[index, 'BSECode'] = background_info['BSECode'].values[0]  # Fill BSECode as well
-            
-#     ohlc_full = ohlc_full.astype({"BSECode": str})
-#     ohlc_full["BSECode"] = ohlc_full["BSECode"].replace('0', np.nan)
-
-#     print("Count:", count)
-
-#     return ohlc_full
-
-
-
-# def btt_fix(ohlc_full, curr_date,conn):
-#     today = curr_date
-#     BTT_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
-#     count =0
-#     next_month = today.month + 1 if today.month + 1 <= 12 else 1
-#     next_year = today.year if today.month + 1 <= 12 else today.year + 1
-
-#     BTT_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
-
-#     # print(BTT_back, BTT_next)
-
-#     btt_sql = """
-#     SELECT *
-#     FROM "BTTList"
-#     WHERE "BTTDate" >= %s AND "BTTDate" < %s
-#     """
-#     bttlist = pd.read_sql_query(btt_sql, con=conn, params=(BTT_back, BTT_next))
-
-#     ohlc_full["BSECode"].fillna(0, inplace=True)
-#     ohlc_full = ohlc_full.astype({"BSECode": int})
-
-#     # filter ohlc_full where CompanyCode is null
-#     coco_null_ohlc_full = ohlc_full[ohlc_full["CompanyCode"].isnull()]
-#     # print(type(coco_null_ohlc_full))
-
-#     # nse_null_ohlc_full = ohlc_full[ohlc_full["NSECode"].isnull()]
-#     # bse_null_ohlc_full = ohlc_full[ohlc_full["BSECode"].isnull()]
-#     for index, row in coco_null_ohlc_full.iterrows():  
-
-#         nsecode = row['NSECode']
-#         bsecode = row['BSECode']
-#         isin = row['ISIN']
-#         # print("nsecode: ", nsecode)
-
-#         if nsecode is not None:
-#             btt_data = bttlist[bttlist["NSECode"] == nsecode]
-#             # print(len(btt_data))
-#             if not btt_data.empty:
-#                 # print("BTT Data: ", btt_data)
-#                 # replace the CompanyCode with the CompanyCode from btt_data
-#                 coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-#                 # print("companycode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0])
-#                 # replace the bsecode with the BSECode from btt_data 
-#                 coco_null_ohlc_full.loc[index, 'BSECode'] = btt_data['BSECode'].values[0]
-#                 # # replace the isi with the ISIN from btt_data
-#                 coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-#                 count = count + 1
-#         elif bsecode is not None:
-#             btt_data = bttlist[bttlist["BSECode"] == bsecode]
-#             # replace the CompanyCode with the CompanyCode from btt_data
-#             coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-#             # replace the nsecode with the NSECode from btt_data
-#             coco_null_ohlc_full.loc[index, 'NSECode'] = btt_data['NSECode'].values[0]
-#             # replace the isi with the ISIN from btt_data
-#             coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-#         # repalce coco_null_ohlc_full with the updated values in the ohlc_full
-#         ohlc_full.update(coco_null_ohlc_full)
-#     # filter the ohlc_full where CompanyCode matches with the CompanyCode in bttlist
-#     btt_ohlc = ohlc_full[ohlc_full['NSECode'].isin(bttlist['NSECode']) | 
-#                           ohlc_full['BSECode'].isin(bttlist['BSECode']) |
-#                           ohlc_full['ISIN'].isin(bttlist['ISIN'])]
-
-#     null_btt_ohlc = btt_ohlc[btt_ohlc["CompanyCode"].isnull()]
-
-#     for index, row in null_btt_ohlc.iterrows():
-#         nsecode = row['NSECode']
-#         bsecode = row['BSECode']
-#         isin = row['ISIN']
-
-#         background_info_sql = """
-#         SELECT * FROM public."BackgroundInfo"
-#         WHERE "NSECode" = %s
-#         OR "BSECode" = %s
-#         OR "ISINCode" = %s
-#         """
-#         background_info = pd.read_sql_query(background_info_sql, con=conn, params=(nsecode, bsecode, isin))
-#         # print(len(background_info))
-#         if not background_info.empty:
-#             # assing the values from background_info to the null_btt_ohlc
-#             null_btt_ohlc.loc[index, 'CompanyCode'] = background_info['CompanyCode'].values[0]
-#             # null_btt_ohlc.loc[index, 'Company'] = background_info['CompanyName'].values[0]
-#             null_btt_ohlc.loc[index, 'ISIN'] = background_info['ISINCode'].values[0]
-#             null_btt_ohlc.loc[index, 'NSECode'] = background_info['NSECode'].values[0]
-#             null_btt_ohlc.loc[index, 'BSECode'] = background_info['BSECode'].values[0]
-
-#             # print("CompanyCode has been replaced for ", nsecode, 'as ', background_info['CompanyCode'].values[0])
-#         # repalce coco_null_ohlc_full with the updated values in the ohlc_full
-#         ohlc_full.update(null_btt_ohlc)
-    
-        
-    
-#     ohlc_full = ohlc_full.astype({"BSECode": str})
-#     ohlc_full["BSECode"] = ohlc_full["BSECode"].replace('0', np.nan)
-#     # print("count: ", count)
-    
-#     return ohlc_full
-
-
-
-# def insert_ohlc(table_ohlc, conn, cur):
-
-#     table_ohlc = table_ohlc[['Company', 'NSECode', 'BSECode', 'ISIN', 'Open', 'High', 'Low', 'Close',
-#                              'Date', 'Value', 'Volume', 'CompanyCode']]
-
-#     exportfilename = "exportOHLC.csv"
-#     exportfile = open(exportfilename, "w")
-#     table_ohlc.to_csv(exportfile, header=True,
-#                       index=False, lineterminator='\r')
-#     exportfile.close()
-
-#     copy_sql = """
-#            COPY public."OHLC" FROM stdin WITH CSV HEADER
-#            DELIMITER as ','
-#            """
-#     with open(exportfilename, 'r') as f:
-#         cur.copy_expert(sql=copy_sql, file=f)
-#         f.close()
-
-#     print("OHLC Insert Completed")
-#     os.remove(exportfilename)
 
 def ohlc_join(ohlc_nse, ohlc_bse, conn, curr):
 
@@ -482,7 +207,7 @@ def merge_background(table_ohlc, conn):
     # get the null values in the CompanyCode column
     null_company_codes = table_ohlc.loc[table_ohlc['CompanyCode'].isnull()]
     print("nulls while merging", len(null_company_codes))
-    print(null_company_codes['ISIN'])
+    # print(null_company_codes['ISIN'])
     table_ohlc = table_ohlc.astype({"BSECode": str})
     table_ohlc["BSECode"] = table_ohlc["BSECode"].replace('0', np.nan)
 
@@ -497,256 +222,67 @@ def merge_background(table_ohlc, conn):
 
     return table_ohlc
 
-# NSE table = table[['SYMBOL', 'SERIES', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST', 'PREVCLOSE', 'TOTTRDQTY', 'TOTTRDVAL', 'TIMESTAMP', 'TOTALTRADES', 'ISIN']]
-# BSE table = table[['SC_CODE', 'SC_NAME', 'SC_GROUP', 'SC_TYPE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST', 'PREVCLOSE', 'NO_TRADES', 'NO_OF_SHRS', 'NET_TURNOV', 'TDCLOINDI', 'ISIN_CODE', 'TRADING_DATE']
-def btt_fix(ohlc_full, curr_date,conn):
-    today = curr_date
-    BTT_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
-    count = 0
-    next_month = today.month + 1 if today.month + 1 <= 12 else 1
-    next_year = today.year if today.month + 1 <= 12 else today.year + 1
-    print("initial ohlc_full : ",len(ohlc_full))
+
+def btt_fix(ohlc_full, curr_date, conn):
+    # Define date range for querying current month data
+    BTT_back = datetime.date(curr_date.year, curr_date.month, 1).strftime("%Y-%m-%d")
+    next_month = curr_date.month + 1 if curr_date.month + 1 <= 12 else 1
+    next_year = curr_date.year if curr_date.month + 1 <= 12 else curr_date.year + 1
     BTT_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
 
-    # print(BTT_back, BTT_next)
-
+    # Fetch BTT list data for the current month
     btt_sql = """
     SELECT *
     FROM "BTTList"
     WHERE "BTTDate" >= %s AND "BTTDate" < %s
     """
     bttlist = pd.read_sql_query(btt_sql, con=conn, params=(BTT_back, BTT_next))
-    # print("bttlist : ",len(bttlist))
-        # get ohlc for bttlist
-    btt_ohlc = bttlist[bttlist['CompanyCode'].isin(ohlc_full['CompanyCode'])]
-    print('bttlist : ',len(bttlist))
-    print("btt_ohlc : ",len(btt_ohlc))
-    print('difference : ',len(bttlist)-len(btt_ohlc))
     
-    #mising CompanyCode in bttlist
-    missing_companycode = bttlist[~bttlist['CompanyCode'].isin(ohlc_full['CompanyCode'])]
-    # print("missing_companycode : ",missing_companycode['CompanyCode'])
+    # Logging count of BTT records
+    LOGS["BTT_count"] = len(bttlist)
+    print(f"Total BTT records fetched: {len(bttlist)}")    
+    # Initialize counter to track the number of rows updated
+    btt_fix_count = 0
+
+    # Filter bttlist to only rows with matching ISINs in ohlc_full
+    btt_ohlc = bttlist[bttlist['ISIN'].isin(ohlc_full['ISIN'])]
+    LOGS['ISIN_matches'] = len(btt_ohlc)
+    print(f"Total BTT records matching ISINs in ohlc_full: {len(btt_ohlc)}")
     
-    # print(len(ohlc_full[ohlc_full["CompanyCode"].isnull()]))
-    # filter ohlc_full where CompanyCode is null
-    coco_null_ohlc_full = ohlc_full[ohlc_full[["CompanyCode"]].isnull().any(axis=1)]
-    coco_null_ohlc_full = pd.DataFrame(coco_null_ohlc_full)  # Convert to DataFrame
-    print("initial companycode nulls in ohlc : ",len(coco_null_ohlc_full))
+    # Iterate over ohlc_full to check for missing CompanyCode and fill values if ISIN matches
+    for index, row in ohlc_full.iterrows():
+        if row['ISIN'] in btt_ohlc['ISIN'].values:
+            matching_btt_row = btt_ohlc[btt_ohlc['ISIN'] == row['ISIN']].iloc[0]
+            
+            # Check if CompanyCode is missing in ohlc_full
+            if pd.isnull(row['CompanyCode']):
+                # Fill in missing CompanyCode, NSECode, BSECode from matching bttlist row
+                ohlc_full.at[index, 'CompanyCode'] = matching_btt_row['CompanyCode']
+                ohlc_full.at[index, 'NSECode'] = matching_btt_row['NSECode']
+                ohlc_full.at[index, 'BSECode'] = matching_btt_row['BSECode']
+                
+                # Increment the counter since we've updated a row
+                btt_fix_count += 1
 
-    # nse_null_ohlc_full = ohlc_full[ohlc_full["NSECode"].isnull()]
-    # bse_null_ohlc_full = ohlc_full[ohlc_full["BSECode"].isnull()]
-    for index, row in coco_null_ohlc_full.iterrows():
-
-        nsecode = row['NSECode']
-        bsecode = row['BSECode']
-        isin = row['ISIN']
-        # print("nsecode: ", nsecode)
-
-        if nsecode is not None:
-            btt_data = bttlist[bttlist["NSECode"] == nsecode]
-            # print(len(btt_data))
-            if not btt_data.empty:
-                # print("BTT Data: ", btt_data)
-                # replace the CompanyCode with the CompanyCode from btt_data
-                coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-                # print("companycode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0])
-                # replace the bsecode with the BSECode from btt_data 
-                coco_null_ohlc_full.loc[index, 'BSECode'] = btt_data['BSECode'].values[0]
-                # # replace the isi with the ISIN from btt_data
-                # if coco_null_ohlc_full.loc[index, 'ISIN'] is  null
-                # if coco_null_ohlc_full.loc[index, 'ISIN'].isnull():
-                if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
-
-                    coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-                # print("CompanyCode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0]) 
-                count = count + 1
-        elif bsecode is not None:
-            btt_data = bttlist[bttlist["BSECode"] == bsecode]
-            # replace the CompanyCode with the CompanyCode from btt_data
-            coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-            # replace the nsecode with the NSECode from btt_data
-            # coco_null_ohlc_full.loc[index, 'NSECode'] = btt_data['NSECode'].values[0]
-            # # replace the isi with the ISIN from btt_data
-            # # if coco_null_ohlc_full.loc[index, 'ISIN'].isnull():
-            # if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
-            #     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-            # print("CompanyCode has been replaced for ", bsecode, 'as ', btt_data['CompanyCode'].values[0])
-            count = count + 1   
-
-        # repalce coco_null_ohlc_full with the updated values in the ohlc_full
-        ohlc_full.update(coco_null_ohlc_full)
-    print("ohlc_full : ",len(ohlc_full))
-    print("count count replaced in bttlist : ", count)
+    # Log the count of updated rows
+    LOGS["BTT_fix"] = btt_fix_count
+    print(f"Total rows updated in btt_fix: {btt_fix_count}")
     
-    
-    
-    count = 0
 
-    # filter the ohlc_full where CompanyCode matches with the CompanyCode in bttlist
-    # btt_ohlc = ohlc_full[ohlc_full['NSECode'].isin(bttlist['NSECode']) | 
-    #                       ohlc_full['BSECode'].isin(bttlist['BSECode']) |
-    #                       ohlc_full['ISIN'].isin(bttlist['ISIN'])]
-    # print("btt_ohlc : ",len(btt_ohlc))
-
-    null_btt_ohlc = ohlc_full[ohlc_full[["CompanyCode"]].isnull().any(axis=1)]
-    print("null_btt_ohlc : ",len(null_btt_ohlc))
-    for index, row in null_btt_ohlc.iterrows():
-        nsecode = row['NSECode']
-        bsecode = row['BSECode']
-        isin = row['ISIN']
-
-
-
-        background_info_sql = """
-        SELECT * FROM public."BackgroundInfo"
-        WHERE  "ISINCode" = %s::varchar
-        OR "NSECode" = %s::varchar
-        OR "BSECode" = %s
-        """
-        background_info = pd.read_sql_query(background_info_sql, con=conn, params=(isin, nsecode, bsecode))
-        # if bsecode == 506879:
-        #     print(nsecode, bsecode, isin)
-        #     print(background_info)
-        # print(len(background_info))
-        if not background_info.empty:
-            # assing the values from background_info to the null_btt_ohlc
-            null_btt_ohlc.loc[index, 'CompanyCode'] = background_info['CompanyCode'].values[0]
-            # null_btt_ohlc.loc[index, 'Company'] = background_info['CompanyName'].values[0]
-            # null_btt_ohlc.loc[index, 'ISIN'] = background_info['ISINCode'].values[0]
-            # null_btt_ohlc.loc[index, 'NSECode'] = background_info['NSECode'].values[0]
-            # null_btt_ohlc.loc[index, 'BSECode'] = background_info['BSECode'].values[0]
-            count = count + 1
-            # print("CompanyCode has been replaced for ", nsecode, 'as ', background_info['CompanyCode'].values[0])
-        # repalce coco_null_ohlc_full with the updated values in the ohlc_full
-        ohlc_full.update(null_btt_ohlc)
-
+    # Remove duplicates based on CompanyCode to ensure uniqueness
     ohlc_full = ohlc_full.drop_duplicates(subset=['CompanyCode'])
-    print("ohlc_full : ",len(ohlc_full))
-    print("count count replaced in backgrounndinfo : ", count)
+
+    # Create ohlc_clean DataFrame by filtering rows with no nulls in critical columns
+    ohlc_clean = ohlc_full.dropna(subset=['CompanyCode', 'NSECode', 'BSECode', 'ISIN'])
     
-    print('bttlist : ',len(bttlist))
+    # Logging final count of cleaned OHLC data
+    LOGS["OHLC_count"] = len(ohlc_full)
+    LOGS["OHLC_with_CompanyCode"] = len(ohlc_clean)
+    print(f"OHLC count with CompanyCode: {len(ohlc_clean)}")
     
-    # rows of ohlc_full which matche with bttlist based on CompanyCode, ISIN
-    btt_ohlc = ohlc_full[ohlc_full['CompanyCode'].isin(bttlist['CompanyCode']) | 
-                          ohlc_full['ISIN'].isin(bttlist['ISIN'])]
-    print('btt_ohlc : ',len(btt_ohlc))
+    print("Final length of ohlc_full:", len(ohlc_full))
     
-    # nulls of btt_ohlc based on CompanyCode
-    null_btt_ohlc = btt_ohlc[btt_ohlc["CompanyCode"].isnull()]
-    print('null_btt_ohlc : ',len(null_btt_ohlc))
-    if(len(null_btt_ohlc)>0):
-        print(null_btt_ohlc['CompanyCode'], "nulls in CompanyCode")
-    elif(len(null_btt_ohlc)==0):
-        print("No nulls in CompanyCode")
-        
-    print(null_btt_ohlc['CompanyCode'])
     return ohlc_full
-
-# def btt_fix(ohlc_full, curr_date, conn):
-#     today = curr_date
-#     BTT_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
-#     count = 0
-#     next_month = today.month + 1 if today.month + 1 <= 12 else 1
-#     next_year = today.year if today.month + 1 <= 12 else today.year + 1
-
-#     BTT_next = datetime.date(next_year, next_month, 1).strftime("%Y-%m-%d")
-
-#     # print(BTT_back, BTT_next)
-
-#     btt_sql = """
-#     SELECT *
-#     FROM "BTTList"
-#     WHERE "BTTDate" >= %s AND "BTTDate" < %s
-#     """
-#     bttlist = pd.read_sql_query(btt_sql, con=conn, params=(BTT_back, BTT_next))
-#     # print(len(bttlist))
-#     # print(len(ohlc_full[ohlc_full["CompanyCode"].isnull()]))
-#     # filter ohlc_full where CompanyCode is null
-#     coco_null_ohlc_full = ohlc_full[ohlc_full[["CompanyCode", "BSECode", "NSECode"]].isnull().any(axis = 1)]
-#     coco_null_ohlc_full = pd.DataFrame(coco_null_ohlc_full)  # Convert to DataFrame
-#     # print(type(coco_null_ohlc_full))
-
-#     # nse_null_ohlc_full = ohlc_full[ohlc_full["NSECode"].isnull()]
-#     # bse_null_ohlc_full = ohlc_full[ohlc_full["BSECode"].isnull()]
-#     for index, row in coco_null_ohlc_full.iterrows():
-
-#         nsecode = row['NSECode']
-#         bsecode = row['BSECode']
-#         isin = row['ISIN']
-#         # print("nsecode: ", nsecode)
-
-#         if nsecode is not None:
-#             btt_data = bttlist[bttlist["NSECode"] == nsecode]
-#             # print(len(btt_data))
-#             if not btt_data.empty:
-#                 # print("BTT Data: ", btt_data)
-#                 # replace the CompanyCode with the CompanyCode from btt_data
-#                 coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-#                 # print("companycode has been replaced for ", nsecode, 'as ', btt_data['CompanyCode'].values[0])
-#                 # replace the bsecode with the BSECode from btt_data 
-#                 coco_null_ohlc_full.loc[index, 'BSECode'] = btt_data['BSECode'].values[0]
-#                 # # replace the isi with the ISIN from btt_data
-#                 # if coco_null_ohlc_full.loc[index, 'ISIN'] is  null
-#                 # if coco_null_ohlc_full.loc[index, 'ISIN'].isnull():
-#                 if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
-#                     coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-#                 count = count + 1
-#         elif bsecode is not None:
-#             btt_data = bttlist[bttlist["BSECode"] == bsecode]
-#             # replace the CompanyCode with the CompanyCode from btt_data
-#             coco_null_ohlc_full.loc[index, 'CompanyCode'] = btt_data['CompanyCode'].values[0]
-#             # replace the nsecode with the NSECode from btt_data
-#             coco_null_ohlc_full.loc[index, 'NSECode'] = btt_data['NSECode'].values[0]
-#             # replace the isi with the ISIN from btt_data
-#             # if coco_null_ohlc_full.loc[index, 'ISIN'].isnull():
-#             if pd.isnull(coco_null_ohlc_full.loc[index, 'ISIN']):
-#                 coco_null_ohlc_full.loc[index, 'ISIN'] = btt_data['ISIN'].values[0]
-#             count = count + 1   
-
-#         # repalce coco_null_ohlc_full with the updated values in the ohlc_full
-#         ohlc_full.update(coco_null_ohlc_full)
-#     # print("count: ", count)
-    
-#     count = 0
-
-#     # filter the ohlc_full where CompanyCode matches with the CompanyCode in bttlist
-#     # btt_ohlc = ohlc_full[ohlc_full['NSECode'].isin(bttlist['NSECode']) | 
-#     #                       ohlc_full['BSECode'].isin(bttlist['BSECode']) |
-#     #                       ohlc_full['ISIN'].isin(bttlist['ISIN'])]
-
-#     null_btt_ohlc = ohlc_full[ohlc_full[["CompanyCode", "BSECode", "NSECode"]].isnull().any(axis = 1)]
-
-#     for index, row in null_btt_ohlc.iterrows():
-#         nsecode = row['NSECode']
-#         bsecode = row['BSECode']
-#         isin = row['ISIN']
-
-#         # print(nsecode, bsecode, isin)
-
-#         background_info_sql = """
-#         SELECT * FROM public."BackgroundInfo"
-#         WHERE "NSECode" = %s::varchar
-#         OR "BSECode" = %s
-#         OR "ISINCode" = %s::varchar
-#         """
-#         background_info = pd.read_sql_query(background_info_sql, con=conn, params=(nsecode, bsecode, isin))
-#         # print(len(background_info))
-#         if not background_info.empty:
-#             # assing the values from background_info to the null_btt_ohlc
-#             null_btt_ohlc.loc[index, 'CompanyCode'] = background_info['CompanyCode'].values[0]
-#             # null_btt_ohlc.loc[index, 'Company'] = background_info['CompanyName'].values[0]
-#             # null_btt_ohlc.loc[index, 'ISIN'] = background_info['ISINCode'].values[0]
-#             null_btt_ohlc.loc[index, 'NSECode'] = background_info['NSECode'].values[0]
-#             null_btt_ohlc.loc[index, 'BSECode'] = background_info['BSECode'].values[0]
-#             count = count + 1
-#             # print("CompanyCode has been replaced for ", nsecode, 'as ', background_info['CompanyCode'].values[0])
-#         # repalce coco_null_ohlc_full with the updated values in the ohlc_full
-#         ohlc_full.update(null_btt_ohlc)
-#     # print("count: ", count)
-
-#     # print(len(ohlc_full[ohlc_full["CompanyCode"].isnull()]))
-
-#     return ohlc_full
 
 def insert_ohlc(table_ohlc, conn, cur):
     table_ohlc = table_ohlc[['Company', 'NSECode', 'BSECode', 'ISIN', 'Open', 'High', 'Low', 'Close',
@@ -788,8 +324,8 @@ def ohlc_date_join(dates=None):
     cur = conn.cursor()
 
     for date in dates:
-        ohlc_bse = fetch_bse(conn, cur, date)
-        ohlc_nse = fetch_nse(conn, cur, date)
+        ohlc_bse = fetch_bse(date)
+        ohlc_nse = fetch_nse(date)
         if(not(ohlc_nse is None or ohlc_bse is None)):
             ohlc_join(ohlc_nse, ohlc_bse, conn, cur)
         else:
@@ -800,16 +336,22 @@ def ohlc_date_join(dates=None):
 
 
 def main(curr_date):
+    start_time = time.time()
+    
     cwd = os.getcwd()
 
     conn = DB_Helper().db_connect()
     cur = conn.cursor()
     print("\n\t\t OHLC Fetch Service Started..........\n")
     Check_Helper().check_path(filepath)
+    
+    #LOGS initialization
+    LOGS["log_date"] = curr_date
+    LOGS["log_time"] = datetime.datetime.now().strftime("%H:%M:%S")
 
-    ohlc_nse = fetch_nse(conn, cur, curr_date)
+    ohlc_nse = fetch_nse(curr_date)
     # print(ohlc_nse)
-    ohlc_bse = fetch_bse(conn, cur, curr_date)
+    ohlc_bse = fetch_bse(curr_date)
     # print(ohlc_bse)
 
     insert_nse(ohlc_nse, conn, cur)
@@ -828,5 +370,14 @@ def main(curr_date):
 
     conn.commit()
     print("\n\t\t OHLC Fetch Completed.")
+    
+    end_time = time.time() 
+    LOGS["runtime"] = end_time - start_time
+    
+    insert_logs("OHLC", [LOGS], conn, cur)
+    print("Inserted logs")
+    
     conn.close()
+    
+
     return ohlc_nse, ohlc_bse, ohlc_joined, ohlc_bg,  ohlc_full

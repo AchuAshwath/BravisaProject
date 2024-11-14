@@ -3169,7 +3169,7 @@ CREATE TABLE "Reports"."IRS"
 
 CREATE TABLE "logs"."report_generation"
 (
-    "date" date,
+    "log_date" date,
     "file_presence" boolean,
     "BTTList" boolean,
     "EPS" boolean,
@@ -3180,44 +3180,43 @@ CREATE TABLE "logs"."report_generation"
     "PE" boolean,
     "PRS" boolean,
     "IRS" boolean,
-    "time" time without time zone
-    "runtime" interval
-)
+    "log_time" time without time zone,
+    "runtime" numeric
+);
 
 CREATE TABLE "logs"."insert"
 (
-    "Date" date,
+    "log_date" date,
     "FB3" boolean,
     "FB1" boolean,
     "FB2" boolean,
-    "time" time without time zone
-    "runtime" interval
-)
+    "log_time" time without time zone,
+    "runtime" numeric
+);
 
 CREATE TABLE "logs"."split_bonus"
 (
-    "date" date, 
-    "time" time without time zone,
+    "log_date" date, 
+    "log_time" time without time zone,
     "CompanyCode" double precision,
-    "CompanyName" character varying,
     "split_value" double precision,
     "bonus_value" double precision,
-    "ShareHolding_Total" double precision,
-    "split_date" date,
-    "bonus_date" date
-    "split_bonus_count" character varying,
-    "runtime" interval
-)
+    "OLD_OS" double precision,
+    "NEW_OS" double precision,
+    "runtime" numeric
+);
 
 CREATE TABLE "logs"."OHLC"
 (
-    "date" date,
-    "time" time without time zone,
+    "log_date" date,
+    "log_time" time without time zone,
     "BTT_count" double precision,
+    "ISIN_matches" double precision,
+    "BTT_fix" double precision,
+    "OHLC_with_CompanyCode" double precision,
     "OHLC_count" double precision,
-    "BTT_OHLC_count" double precision,
     "nse_file" character varying,
     "bse_file" character varying,
-    "runtime" interval
-)
+    "runtime" numeric
+);
 
