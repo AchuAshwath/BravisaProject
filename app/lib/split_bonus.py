@@ -91,7 +91,7 @@ def log_split(split,  date, runtime, conn, cur):
                                 WHERE "CompanyCode" = split."CompanyCode"
                                 AND "SHPDate" <= '{date}'
                             )
-                            AND split."XSDate" >= sh."SHPDate";"""
+                            AND split."XSDate" > sh."SHPDate";"""
             shareholding = sqlio.read_sql_query(shareholding_sql, con=conn)
             
             # get the row of shareholding where CompanyCode = row["CompanyCode"]
@@ -145,7 +145,7 @@ def log_bonus( bonus, date, runtime, conn, cur):
                                 WHERE "CompanyCode" = bonus."CompanyCode"
                                 AND "SHPDate" <= '{date}'
                             )
-                            AND bonus."XBDate" >= sh."SHPDate";"""
+                            AND bonus."XBDate" > sh."SHPDate";"""
             shareholding = sqlio.read_sql_query(shareholding_sql, con=conn)
             
             shareholding_row = shareholding.loc[shareholding["CompanyCode"] == row["CompanyCode"]]
@@ -231,7 +231,7 @@ def update_shareholding(split, bonus, conn, cur, date, runtime):
                               FROM public."ShareHolding" 
                               WHERE "CompanyCode" = split."CompanyCode" 
                               AND "SHPDate" <= '{date}')
-          AND split."XSDate" >= sh."SHPDate"; 
+          AND split."XSDate" > sh."SHPDate"; 
         '''
         # print("Executing SQL:\n", update_sql)
         cur.execute(update_sql)
@@ -286,7 +286,7 @@ def update_shareholding(split, bonus, conn, cur, date, runtime):
                               FROM public."ShareHolding" 
                               WHERE "CompanyCode" = bonus."CompanyCode" 
                               AND "SHPDate" <= '{date}')
-          AND bonus."XBDate" >= sh."SHPDate"; 
+          AND bonus."XBDate" > sh."SHPDate"; 
         '''
         # print("Executing SQL:\n", update_sql)
         cur.execute(update_sql)
