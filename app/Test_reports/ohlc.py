@@ -24,8 +24,8 @@ LOGS = {
 }
 
 if os.name == 'nt':
-    my_path = os.getcwd()
-    filepath = os.path.join(my_path, "OHLCFiles\\OHLCFiles\\")
+    cwd = os.getcwd()
+    filepath = os.path.join(cwd, "OHLCFiles\\")
     print("File Path :",filepath)
 
 # Function to fetch BSE OHLC daily file and store it in provided file path
