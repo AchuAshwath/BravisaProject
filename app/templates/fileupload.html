@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:wght@100;400&display=swap"
+      rel="stylesheet"
+    />
+    <title>Flask SPA</title>
+    <style>
+      body {
+        font-family: "Lato", sans-serif;
+        background-color: white;
+      }
+      form {
+        width: 75%;
+        margin: 50px auto;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background-color: white;
+        color: #000;
+      }
+
+      select:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      input:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+      input:hover {
+        font-family: "Lato", sans-serif;
+      }
+      .button {
+        width: 30%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background-color: #1b9cfc;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .button:hover {
+        background-color: #00bcff;
+      }
+
+      #result {
+        margin-top: 20px;
+      }
+      .menu-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      .date-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      select {
+        width: 60%;
+      }
+      .flex-center {
+        display: flex;
+        justify-content: center;
+      }
+      .zero-margin {
+        margin: 0 0 0 0;
+      }
+      .margin-bottom {
+        margin-bottom: 45px;
+      }
+      .width-30 {
+        width: 40%;
+      }
+      .width-25 {
+        width: 37.5%;
+      }
+      .font {
+        font-family: "Lato", sans-serif;
+      }
+      .inline-flex {
+        display: inline-flex;
+      }
+      .space-around {
+        justify-content: space-around;
+      }
+      .width-100 {
+        width: 100%;
+      }
+      a {
+        text-decoration: none;
+      }
+      #FBdrop_zone {
+        width: 100%;
+        /* width: 200px; */
+        height: 90px;
+        cursor: pointer;
+}      
+    </style>
+  </head>
+  <body>
+    <form method="POST" action="/uploadfile" enctype="multipart/form-data">
+        <!-- form to upload files -->
+        <div class="flex-center">
+            <img
+            src="../static/bravisa-logo.jpg"
+            alt="Bravisa Logo"
+            style="margin-bottom: 20px; margin-top: 10px"
+            width="300"
+            height="100"
+          />
+          </div>
+          <div
+            class="inline-flex "
+            style="border-top: 1px solid #ccc; width: 100%; margin-bottom: 20px;"
+          >
+            <a
+              href="/"
+              class="font button"
+              >Generate report</a
+              >
+              <a
+              href="/industrymap"
+              class="font button"
+              style="
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                width: 33.3%;
+                "
+              >Industry Mapping</a
+              >
+              <a
+              href="/"
+              class="font button"
+              style="background-color: white; color: #000; width: 33.3%"
+              style="
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                width: 65%;
+                "
+              >File Upload
+            </a
+            </div>
+        </div>
+            <!-- drop FB files Zip here -->
+
+        <label for="file">FB Files zip :</label>
+        <!-- line break -->
+        <div id="FBdrop_zone" class="flex-center ">
+            <input type="file" name="fb_file" id="fb_file" />
+        </div>
+
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <label for="file">NSE - OHLC file :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="nse_file" id="nse_file" />
+                </div>
+            </div>
+            <div>
+                <label for="file">BSE - OHLC file :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="bse_file" id="bse_file" />
+                </div>
+            </div>
+        </div>
+
+        <label for="file">IndexOHLC file :</label>
+        <!-- line break -->
+        <div id="FBdrop_zone" class="flex-center ">
+            <input type="file" name="indexOHLCfile" id="indexOHLCfile" />
+        </div>
+
+        <div class="margin-bottom" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <label for="file">IndexOHLC file1 :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="index-file1" id="index-file1" />
+                </div>
+            </div>
+            <div>
+                <label for="file">IndexOHLC file2 :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="index-file2" id="index-file2" />
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex-center">
+            <button class="button " type="submit" ;">Upload</button>
+        </div>
+
+    </form>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        // when upload button is clicked
+        // trigger a flask event to upload the file
+        $(document).ready(function () {
+            $("button").click(function () {
+                // trigger the file upload
+                $("form").submit();
+            });
+        });
+
+    </script>
+  </body>
+</html>

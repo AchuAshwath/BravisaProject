@@ -20,7 +20,8 @@ import pandas as pd
 import warnings
 import concurrent.futures
 import time
-from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER
+import zipfile
+from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER
 
 from flask import Flask, render_template, request, jsonify
 # Assuming necessary imports and configurations are done here
@@ -58,6 +59,45 @@ def check_files_presence(date, is_holiday):
             return False
 
 app = Flask(__name__)
+
+@app.route('/fileupload')
+def fileupload():
+    return render_template('fileupload.html')
+
+@app.route('/uploadfile', methods=['POST'])
+def upload_file():
+    saved_files = []
+
+    # Handle FB file upload
+    fb_file = request.files.get('fb_file')
+    if fb_file and fb_file.filename != '':
+        # check if the file is a zip file
+        if fb_file.filename.endswith('.zip'):
+            # extract the zipfile to the FB folder
+            with zipfile.ZipFile(fb_file, 'r') as zip_ref:
+                zip_ref.extractall(FB_FOLDER)
+            saved_files.append(fb_file.filename)
+
+
+    # Handle NSE file upload
+    nse_file = request.files.get('nse_file')
+    if nse_file and nse_file.filename != '':
+        nse_file_path = os.path.join(OHLC_FOLDER, nse_file.filename)
+        nse_file.save(nse_file_path)
+        saved_files.append(nse_file_path)
+
+    # Handle BSE file upload
+    bse_file = request.files.get('bse_file')
+    if bse_file and bse_file.filename != '':
+        bse_file_path = os.path.join(OHLC_FOLDER, bse_file.filename)
+        bse_file.save(bse_file_path)
+        saved_files.append(bse_file_path)
+
+    if not saved_files:
+        return jsonify({'message': 'No files uploaded'}), 400
+
+    return jsonify({'message': 'Files uploaded successfully', 'files': saved_files})
+    
 
 @app.route('/')
 def index():
@@ -137,7 +177,7 @@ def process():
     warnings.filterwarnings("ignore", category=UserWarning)
 
     db = DB_Helper()
-    dbURL = db.engine()
+    # dbURL = db.engine()
     conn = db.db_connect()
     cur = conn.cursor()
     start_date = request.form.get('start_date')
@@ -156,7 +196,7 @@ def process():
         return jsonify({'message': 'Invalid date format. Please use YYYY-MM-DD.'})
 
     if main_menu == "insert_data":
-        insert_data(start_date, end_date, dbURL, conn, cur)
+        insert_data(start_date, end_date, conn, cur)
         return jsonify({'message': 'Insert data processing successful'})
 
     elif main_menu == "generate_report":
@@ -181,7 +221,7 @@ def process():
 
         for i in range(num_days):
             current_date = start_date + timedelta(days=i)
-            insert_data(current_date, current_date, dbURL, conn, cur)
+            insert_data(current_date, current_date, conn, cur)
             result = report_generation(current_date, current_date, is_holiday)
             if not result:
                 return jsonify({'message': 'File not found for date: ' + current_date.strftime("%Y-%m-%d")})
@@ -237,7 +277,7 @@ def process():
     else:
         return jsonify({'message': 'Invalid main_menu value'})
 
-def insert_data(start_date, end_date, dbURL, conn, cur):
+def insert_data(start_date, end_date, conn, cur):
     date_format = "%d%m%Y"
     current_date = start_date
     while current_date <= end_date:
