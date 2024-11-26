@@ -47,7 +47,7 @@ from utils.index_change import IndexCloseChange
 
 conn = DB_Helper().db_connect()
 cur = conn.cursor()
-dbURL = DB_Helper().engine()
+# dbURL = DB_Helper().engine()
 
 def is_not_quarter_end(date):
     quarter_ends = [3, 6, 9, 12]
@@ -61,10 +61,10 @@ def friday_btt(curr_date, is_holiday):
     prev_date = curr_date+datetime.timedelta(-1)
     conn = DB_Helper().db_connect()
     cur = conn.cursor()
-    dbURL = DB_Helper().engine()
-    fbname_one = FB_Helper().get_fb_name_one(curr_date)
-    fbname_two=FB_Helper().get_fb_name_two(curr_date)
-    fbname_three = FB_Helper().get_fb_name_three(prev_date)
+    # dbURL = DB_Helper().engine()
+    # fbname_one = FB_Helper().get_fb_name_one(curr_date)
+    # fbname_two=FB_Helper().get_fb_name_two(curr_date)
+    # fbname_three = FB_Helper().get_fb_name_three(prev_date)
 
     print("\nCONN: ", conn,"\n", flush=True)
     btt_list.main(curr_date)
