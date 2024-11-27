@@ -1,6 +1,5 @@
 **/*.pyc
 **/__pycache__/
-**/__pycache__/
 Bavisa/
 app/IndexOHLCFiles/
 app/OHLCFiles/
@@ -30,3 +29,4 @@ app/build/
 build/
 dist/
 app/dist/
+
