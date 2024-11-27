@@ -48,6 +48,7 @@ def check_files_presence(date, is_holiday):
             #os.path.isfile(os.path.join(index_files_folder, "BSE500_Index.csv"))):
             return True
         else:
+            print("Files not found on the first day of the month:", date.strftime("%Y-%m-%d"))
             return False
     else:
         # Check remaining files for other dates of the month
@@ -56,6 +57,7 @@ def check_files_presence(date, is_holiday):
             os.path.isfile(os.path.join(INDEX_OHLC_FOLDER, "ind_close_all_" + indall + ".csv"))):
             return True
         else:
+            print("Files not found for date:", date.strftime("%Y-%m-%d"))
             return False
 
 app = Flask(__name__)
@@ -91,6 +93,28 @@ def upload_file():
         bse_file_path = os.path.join(OHLC_FOLDER, bse_file.filename)
         bse_file.save(bse_file_path)
         saved_files.append(bse_file.filename)
+        
+    # Handle IndexOHLC file upload
+    index_ohlc_file = request.files.get('IndexOHLCFile')
+    if index_ohlc_file and index_ohlc_file.filename:
+        index_ohlc_file_path = os.path.join(INDEX_OHLC_FOLDER, index_ohlc_file.filename)
+        index_ohlc_file.save(index_ohlc_file_path)
+        saved_files.append(index_ohlc_file.filename)
+    
+    # Handle index-file1 file upload
+    index_file1 = request.files.get('index-file1')
+    if index_file1 and index_file1.filename:
+        index_file1_path = os.path.join(INDEX_FILES_FOLDER, index_file1.filename)
+        index_file1.save(index_file1_path)
+        saved_files.append(index_file1.filename)
+        
+    # Handle index-file2 file upload
+    index_file2 = request.files.get('index-file2')
+    if index_file2 and index_file2.filename:
+        index_file2_path = os.path.join(INDEX_FILES_FOLDER, index_file2.filename)
+        index_file2.save(index_file2_path)
+        saved_files.append(index_file2.filename)
+                           
 
     # Handle missing files
     if not saved_files:

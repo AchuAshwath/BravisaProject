@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 import psycopg2
 import calendar
+import errno
 
 
 class Check_Helper:
