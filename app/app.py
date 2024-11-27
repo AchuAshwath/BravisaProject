@@ -70,33 +70,34 @@ def upload_file():
 
     # Handle FB file upload
     fb_file = request.files.get('fb_file')
-    if fb_file and fb_file.filename != '':
-        # check if the file is a zip file
+    if fb_file and fb_file.filename:
         if fb_file.filename.endswith('.zip'):
-            # extract the zipfile to the FB folder
+            zip_folder_name = os.path.join(FB_FOLDER, os.path.splitext(fb_file.filename)[0])
+            os.makedirs(zip_folder_name, exist_ok=True)
             with zipfile.ZipFile(fb_file, 'r') as zip_ref:
-                zip_ref.extractall(FB_FOLDER)
+                zip_ref.extractall(zip_folder_name)
             saved_files.append(fb_file.filename)
-
 
     # Handle NSE file upload
     nse_file = request.files.get('nse_file')
-    if nse_file and nse_file.filename != '':
+    if nse_file and nse_file.filename:
         nse_file_path = os.path.join(OHLC_FOLDER, nse_file.filename)
         nse_file.save(nse_file_path)
-        saved_files.append(nse_file_path)
+        saved_files.append(nse_file.filename)
 
     # Handle BSE file upload
     bse_file = request.files.get('bse_file')
-    if bse_file and bse_file.filename != '':
+    if bse_file and bse_file.filename:
         bse_file_path = os.path.join(OHLC_FOLDER, bse_file.filename)
         bse_file.save(bse_file_path)
-        saved_files.append(bse_file_path)
+        saved_files.append(bse_file.filename)
 
+    # Handle missing files
     if not saved_files:
-        return jsonify({'message': 'No files uploaded'}), 400
+        return jsonify({'message': 'No files uploaded', 'files': []})
 
     return jsonify({'message': 'Files uploaded successfully', 'files': saved_files})
+
     
 
 @app.route('/')

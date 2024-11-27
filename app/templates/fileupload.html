@@ -14,7 +14,7 @@
         background-color: white;
       }
       form {
-        width: 75%;
+        width: 70%;
         margin: 50px auto;
         padding: 20px;
         border: 1px solid #ccc;
@@ -120,9 +120,9 @@
         cursor: pointer;
 }      
     </style>
-  </head>
-  <body>
-    <form method="POST" action="/uploadfile" enctype="multipart/form-data">
+</head>
+<body>
+    <form id="uploadForm" method="POST" action="/uploadfile" enctype="multipart/form-data">
         <!-- form to upload files -->
         <div class="flex-center">
             <img
@@ -132,47 +132,38 @@
             width="300"
             height="100"
           />
-          </div>
-          <div
-            class="inline-flex "
-            style="border-top: 1px solid #ccc; width: 100%; margin-bottom: 20px;"
-          >
-            <a
-              href="/"
-              class="font button"
-              >Generate report</a
-              >
-              <a
-              href="/industrymap"
-              class="font button"
-              style="
-                border-top-left-radius: 0px;
-                border-top-right-radius: 0px;
-                width: 33.3%;
-                "
-              >Industry Mapping</a
-              >
-              <a
-              href="/"
-              class="font button"
-              style="background-color: white; color: #000; width: 33.3%"
-              style="
-                border-top-left-radius: 0px;
-                border-top-right-radius: 0px;
-                width: 65%;
-                "
-              >File Upload
-            </a
-            </div>
         </div>
-            <!-- drop FB files Zip here -->
+        <div
+            class="inline-flex"
+            style="border-top: 1px solid #ccc; width: 100%; margin-bottom: 20px;"
+        >
+            <a href="/" class="font button">Generate report</a>
+            <a
+                href="/industrymap"
+                class="font button"
+                style="
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 0px;
+                    width: 33.3%;
+                "
+            >Industry Mapping</a>
+            <a
+                href="/"
+                class="font button"
+                style="background-color: white; color: #000; width: 33.3%"
+                style="
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 0px;
+                    width: 65%;
+                "
+            >File Upload</a>
+        </div>
 
+        <!-- drop FB files Zip here -->
         <label for="file">FB Files zip :</label>
-        <!-- line break -->
-        <div id="FBdrop_zone" class="flex-center ">
+        <div id="FBdrop_zone" class="flex-center">
             <input type="file" name="fb_file" id="fb_file" />
         </div>
-
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
@@ -190,8 +181,7 @@
         </div>
 
         <label for="file">IndexOHLC file :</label>
-        <!-- line break -->
-        <div id="FBdrop_zone" class="flex-center ">
+        <div id="FBdrop_zone" class="flex-center">
             <input type="file" name="indexOHLCfile" id="indexOHLCfile" />
         </div>
 
@@ -211,22 +201,45 @@
         </div>
         
         <div class="flex-center">
-            <button class="button " type="submit" ;">Upload</button>
+            <button class="button" type="submit">Upload</button>
         </div>
-
+        <div id="responseMessage" class="flex-center"></div>
     </form>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        // when upload button is clicked
-        // trigger a flask event to upload the file
-        $(document).ready(function () {
-            $("button").click(function () {
-                // trigger the file upload
-                $("form").submit();
-            });
-        });
 
-    </script>
-  </body>
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+    <script>
+      $(document).ready(function () {
+          $('#uploadForm').on('submit', function (event) {
+              event.preventDefault(); // Prevent traditional form submission
+  
+              var formData = new FormData(this);
+  
+              $.ajax({
+                  url: '/uploadfile', // Flask endpoint
+                  type: 'POST',
+                  data: formData,
+                  contentType: false,
+                  processData: false,
+                  success: function (response) {
+                      // Display the success response
+                      $('#responseMessage').html(
+                          `<p style="color: green;">${response.message}</p>
+                           <p>Files: ${response.files.join(', ')}</p>`
+                      );
+                  },
+                  error: function (xhr, status, error) {
+                      // Display the error response
+                      $('#responseMessage').html(
+                          `<p style="color: red;">Error: ${xhr.responseText}</p>`
+                      );
+                  }
+              });
+          });
+      });
+  </script>
+  
+  
+</body>
 </html>
