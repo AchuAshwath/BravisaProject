@@ -37,7 +37,11 @@ def check_files_presence(date, is_holiday):
     # eqisin = date.strftime("%d%m%y")
     indall = date.strftime("%d%m%Y")
 
-    
+    print("OHLC:", OHLC_FOLDER)
+    print("INDEX_OHLC:", INDEX_OHLC_FOLDER)
+    print("INDEX_FILES:", INDEX_FILES_FOLDER)
+    print("FB_FOLDER:", FB_FOLDER)  
+     
     # Check if it's the start of the month
     if date.day == 1:
         # Check if all required files are present along with index files
@@ -52,6 +56,16 @@ def check_files_presence(date, is_holiday):
             return False
     else:
         # Check remaining files for other dates of the month
+        if not(os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_BSE_CM_0_0_0_" + eqisin + "_F_0000.csv"))):
+            print("BSE file not found for date:", date.strftime("%Y-%m-%d"))
+        
+        if not(os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_NSE_CM_0_0_0_"+ cmbhav +"_F_0000.csv"))):
+            print("NSE file not found for date:", date.strftime("%Y-%m-%d"))
+        
+        if not(os.path.isfile(os.path.join(INDEX_OHLC_FOLDER, "ind_close_all_" + indall + ".csv"))):
+            print("Index file not found for date:", date.strftime("%Y-%m-%d"))
+        
+        
         if (os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_BSE_CM_0_0_0_" + eqisin + "_F_0000.csv")) and
             os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_NSE_CM_0_0_0_"+ cmbhav +"_F_0000.csv" )) and
             os.path.isfile(os.path.join(INDEX_OHLC_FOLDER, "ind_close_all_" + indall + ".csv"))):
