@@ -85,14 +85,16 @@ def upload_file():
     saved_files = []
 
     # Handle FB file upload
-    fb_file = request.files.get('fb_file')
-    if fb_file and fb_file.filename:
-        if fb_file.filename.endswith('.zip'):
-            zip_folder_name = os.path.join(FB_FOLDER, os.path.splitext(fb_file.filename)[0])
-            os.makedirs(zip_folder_name, exist_ok=True)
-            with zipfile.ZipFile(fb_file, 'r') as zip_ref:
-                zip_ref.extractall(zip_folder_name)
-            saved_files.append(fb_file.filename)
+    for i in range(1, 4):
+        fileupload_name = 'FB0'+str(i)+'zip'  
+        fb_file = request.files.get(fileupload_name)
+        if fb_file and fb_file.filename:
+            if fb_file.filename.endswith('.zip'):
+                zip_folder_name = os.path.join(FB_FOLDER, os.path.splitext(fb_file.filename)[0])
+                os.makedirs(zip_folder_name, exist_ok=True)
+                with zipfile.ZipFile(fb_file, 'r') as zip_ref:
+                    zip_ref.extractall(zip_folder_name)
+                saved_files.append(fb_file.filename)
 
     # Handle NSE file upload
     nse_file = request.files.get('nse_file')
@@ -614,8 +616,16 @@ def download_csv(csv, report, filename):
                     }
         # map the index_mapping to the IndexName column
         csv['IndexName'] = csv['IndexName'].map(index_mapping)
-            
-    csv.to_csv(filename, index=False)
+        
+    try:        
+        csv.to_csv(filename, index=False)
+    except OSError:
+        # create DownloadedFiles folder if it doesn't exist on the cwd
+        os.makedirs('DownloadedFiles')
+        csv.to_csv(filename, index=False)
+    finally:
+        print("File saved successfully")
+        
     
 
 

@@ -14,7 +14,7 @@
         background-color: white;
       }
       form {
-        width: 70%;
+        width: 85%;
         margin: 50px auto;
         padding: 20px;
         border: 1px solid #ccc;
@@ -160,10 +160,27 @@
         </div>
 
         <!-- drop FB files Zip here -->
-        <label for="file">FB Files zip :</label>
-        <div id="FBdrop_zone" class="flex-center">
-            <input type="file" name="fb_file" id="fb_file" />
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div>
+              <label for="file">FB 01 zip :</label>
+              <div id="FBdrop_zone" class="flex-center">
+                  <input type="file" name="FB01zip" id="FB01zip" />
+              </div>
+          </div>
+          <div>
+              <label for="file">FB 02 zip :</label>
+              <div id="FBdrop_zone" class="flex-center">
+                  <input type="file" name="FB02zip" id="FB02zip" />
+              </div>
+          </div>
+          <div>
+            <label for="file">FB 03 zip :</label>
+            <div id="FBdrop_zone" class="flex-center">
+                <input type="file" name="FB03zip" id="FB03zip" />
+            </div>
         </div>
+
+      </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div>
