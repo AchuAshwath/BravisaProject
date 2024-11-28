@@ -15,7 +15,7 @@ import utils.date_set as date_set
 import rootpath
 
 # my_path = os.path.abspath(os.path.dirname(__file__))
-my_path = os.path.abspath(os.path.dirname('D:\\Desktop Copy\\Braviza\\app\\'))	#working directory
+my_path = os.getcwd()	#working directory
 filepath = os.path.join(my_path, "index-files\\")
 
 

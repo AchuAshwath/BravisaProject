@@ -116,19 +116,26 @@ def upload_file():
         saved_files.append(index_ohlc_file.filename)
     
     # Handle index-file1 file upload
-    index_file1 = request.files.get('index-file1')
+    index_file1 = request.files.get('ind_nifty500list.csv')
     if index_file1 and index_file1.filename:
         index_file1_path = os.path.join(INDEX_FILES_FOLDER, index_file1.filename)
-        index_file1.save(index_file1_path)
-        saved_files.append(index_file1.filename)
+        # before saving the file, check filename is ind_nifty500list.csv
+        if index_file1.filename == 'ind_nifty500list.csv':
+            index_file1.save(index_file1_path)
+            saved_files.append(index_file1.filename)
+        else:
+            return jsonify({'message': 'Invalid file uploaded. Please upload ind_nifty500list.csv file.'})
+
         
     # Handle index-file2 file upload
-    index_file2 = request.files.get('index-file2')
+    index_file2 = request.files.get('BSE500_Index.csv')
     if index_file2 and index_file2.filename:
         index_file2_path = os.path.join(INDEX_FILES_FOLDER, index_file2.filename)
-        index_file2.save(index_file2_path)
-        saved_files.append(index_file2.filename)
-                           
+        if index_file2.filename == 'BSE500_Index.csv':
+            index_file2.save(index_file2_path)
+            saved_files.append(index_file2.filename)
+        else:
+            return jsonify({'message': 'Invalid file uploaded. Please upload BSE500_Index.csv file.'})
 
     # Handle missing files
     if not saved_files:
