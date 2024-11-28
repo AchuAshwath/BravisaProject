@@ -31,3 +31,4 @@ dist/
 app/dist/
 *.csv
 app/DownloadedFiles
+app/backup
