@@ -1,3 +1,5 @@
+**/*.pyc
+**/__pycache__/
 Bavisa/
 app/IndexOHLCFiles/
 app/OHLCFiles/
@@ -23,3 +25,10 @@ app/utils/__pycache__/check_helper.cpython-312.pyc
 app/utils/__pycache__/date_set.cpython-312.pyc
 app/utils/__pycache__/db_helper.cpython-312.pyc
 app/utils/__pycache__/db_helper.cpython-312.pyc
+app/build/
+build/
+dist/
+app/dist/
+*.csv
+app/DownloadedFiles
+app/backup
