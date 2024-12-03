@@ -8,6 +8,7 @@ from pathlib import Path
 import psycopg2
 import calendar
 import errno
+from config import FB_FOLDER
 
 
 class Check_Helper:
@@ -32,8 +33,20 @@ class Check_Helper:
                 print("Can't create folder")
                 if exc.errno != errno.EEXIST:
                     raise
-
-    # Function to check if FB history file exists:
+    
+    def check_FBpath(self, pathname_tocheck):
+        """ Function to check if path exists
+            and this function is being use in
+            fb.py.
+        """
+        # check if the folder with pathname_tocheck exists in the FB_FOLDER
+        if not os.path.isdir(FB_FOLDER + pathname_tocheck):
+            # if not throw an error
+            print(pathname_tocheck, "Folder does not exist")
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), pathname_tocheck)
+        
+            
+        
 
     def check_file(self, file_path, filename_tocheck):
         """ Function to check if FB history file exists

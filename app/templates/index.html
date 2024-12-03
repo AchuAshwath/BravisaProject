@@ -63,7 +63,9 @@
         color: #fff;
         cursor: pointer;
       }
-
+      .highlight {
+        color: #1b9cfc;
+      }
       .button:hover {
         background-color: #00bcff;
       }
@@ -152,8 +154,8 @@
             width: 33.3%;
           "
           >Industry Mapping</a
-        >
-        <a
+          >
+          <a
           href="/fileupload"
           class="font button"
           style="
@@ -162,27 +164,31 @@
             width: 33.3%;
           "
           >Upload File</a>
-      </div>
+        </div>
+        <div class="inline-flex width-100 space-around" style="margin-bottom: 20px;">
+          <p class="font" style="">Last Dates  -> </p>
+          <p class="font">report generation : <span class="highlight">{{ last_report_generation_date }}</span></p>
+          <p class="font">insert : <span class="highlight">{{ last_insert_date }}</span></p>
+        </div>
 
-
-      
+      <!-- display last date of insert date and report genereation -->
       <div class="inline-flex width-100 space-around">
         <label class="flex" for="start_date">From:</label>
         <label class="flex" for="end_date">To:</label>
       </div>
       <div class="date-container margin-bottom">
         <input
-          class="width-25 font"
-          type="date"
-          id="start_date"
-          name="start_date"
+        class="width-25 font"
+        type="date"
+        id="start_date"
+        name="start_date"
         />
-
+        
         <input
-          class="width-25 font"
-          type="date"
-          id="end_date"
-          name="end_date"
+        class="width-25 font"
+        type="date"
+        id="end_date"
+        name="end_date"
         />
       </div>
       <div class="menu-container font margin-bottom">
@@ -194,7 +200,7 @@
           <option value="delete_report">Delete Report</option>
           <option value="download">Download CSV</option>
         </select>
-
+        
         <select class="width-30 font" id="submenu" name="submenu">
           <option value="sub1">Submenu 1</option>
         </select>
@@ -211,29 +217,29 @@
           <!-- <div class="flex-center font" style="border: 1px solid #ccc;width: 50%;">
             <p>Drag and drop the FB Files</p> -->
           </div>
-          <div class="flex margin-bottom" style="width: 100%;margin-top: 5%;">
+          <div class="flex " style="width: 100%;margin-top: 5%;">
             <div class="font inline-flex " style="width: 100%;justify-content: center ;">
               <!-- </div class="font inline-flex space-between" > -->
-                <label class="flex-center" for="is_holiday" >Holiday:</label>
-                <div>
-                  <input 
-                    type="checkbox"
-                    id="is_holiday"
-                    name="is_holiday"
-                    value="true"
-                  />
-                </div>
-                <!-- <input 
-                  style="width: 50%"
-                  type="checkbox"
-                  id="is_holiday"
-                  name="is_holiday"
-                  value="true"
+              <label class="flex-center margin-bottom" for="is_holiday" >Holiday:</label>
+              <div>
+                <input 
+                type="checkbox"
+                id="is_holiday"
+                name="is_holiday"
+                value="true"
                 />
-              </div> -->
+              </div>
+              <!-- <input 
+              style="width: 50%"
+              type="checkbox"
+              id="is_holiday"
+              name="is_holiday"
+              value="true"
+              />
+            </div> -->
           </div>
-      </div>
-
+        </div>
+        
 
       </div>
       <!-- </div> -->

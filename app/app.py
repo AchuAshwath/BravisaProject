@@ -22,7 +22,7 @@ import concurrent.futures
 import time
 import zipfile
 from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER
-
+from utils.logs import insert_logs
 from flask import Flask, render_template, request, jsonify
 # Assuming necessary imports and configurations are done here
 def check_files_presence(date, is_holiday):
@@ -149,7 +149,21 @@ def upload_file():
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    db = DB_Helper()
+    conn = db.db_connect()
+
+    cur = conn.cursor()
+
+    last_insert_date_sql = """SELECT MAX("log_date") FROM "logs"."insert" """
+    last_report_generation_date_sql = """SELECT MAX("log_date") FROM "logs"."report_generation" """
+
+    last_insert_date = pd.read_sql_query(last_insert_date_sql, conn)
+    last_report_generation_date = pd.read_sql_query(last_report_generation_date_sql, conn)
+
+    last_insert_date = last_insert_date.values[0][0]
+    last_report_generation_date = last_report_generation_date.values[0][0]
+    
+    return render_template('index.html', last_insert_date=last_insert_date, last_report_generation_date=last_report_generation_date)
 
 @app.route('/industrymap')
 def industrymap():
@@ -333,12 +347,26 @@ def insert_data(start_date, end_date, conn, cur):
             prev_date = current_date - timedelta(days=2)  # Saturday
         else:
             prev_date = current_date - timedelta(days=1)  # Previous day
-
+        start_time = time.time()
         print(current_date)
-        FB_Insert().fb_insert_03("FB" + prev_date.strftime(date_format) + "03", conn, cur)
-        FB_Insert().fb_insert_01("FB" + current_date.strftime(date_format) + "01", conn, cur)
-        FB_Insert().fb_insert_02("FB" + current_date.strftime(date_format) + "02", conn, cur)
+        fb3 = FB_Insert().fb_insert_03("FB" + prev_date.strftime(date_format) + "03", conn, cur)
+        fb1 = FB_Insert().fb_insert_01("FB" + current_date.strftime(date_format) + "01", conn, cur)
+        fb2 = FB_Insert().fb_insert_02("FB" + current_date.strftime(date_format) + "02", conn, cur)
+        end_time = time.time()
+        print(fb1, fb2, fb3)
         print("Inserted: ", current_date)
+        if fb1 and fb2 and fb3:
+            LOGS = {
+                "log_date": current_date,
+                "FB3": fb3,
+                "FB1": fb1,
+                "FB2": fb2,
+                "log_time": datetime.now(),
+                "runtime": end_time - start_time
+            }
+            insert_logs("insert", [LOGS], conn, cur)   
+        else:
+            print("Files not found for date:", current_date.strftime("%Y-%m-%d")) 
         current_date += timedelta(days=1)
 
 def report_generation(startdate, enddate, is_holiday):

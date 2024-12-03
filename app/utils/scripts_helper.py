@@ -2,6 +2,7 @@ from utils.db_helper import DB_Helper
 from utils.fb_helper import FB_Helper
 from utils.sanitize import san_in
 
+from utils.logs import insert_logs
 from lib import btt_list
 from lib import ohlc
 from lib import index_ohlc
@@ -379,22 +380,54 @@ def run_scripts_frompy(sdate, edate,is_holiday):
         if curr_date.weekday() == 4 and curr_date == month_start:
             #run friday plus btt script
             friday_btt(curr_date,is_holiday)
+            LOGS = {
+            "log_date": curr_date,
+            "log_time": datetime.datetime.now(),
+            "runtime": time.time()-start_time,
+            } 
+            insert_logs("report_generation", [LOGS], conn, cur)
         elif curr_date == month_end:
             #run month end scripts
             month_endf(curr_date, is_holiday)
+            LOGS = {
+            "log_date": curr_date,
+            "log_time": datetime.datetime.now(),
+            "runtime": time.time()-start_time,
+            } 
+            insert_logs("report_generation", [LOGS], conn, cur)
         elif curr_date==month_start and curr_date.weekday()<4:
             #run daily plus btt script
             daily_btt(curr_date,is_holiday)
+            # we can add btt_list column here later
+            LOGS = {
+            "log_date": curr_date,
+            "log_time": datetime.datetime.now(),
+            "runtime": time.time()-start_time,
+            } 
+            insert_logs("report_generation", [LOGS], conn, cur)
         elif curr_date.weekday() == 4:
             #run friday script
             friday_scripts(curr_date,is_holiday)
+            LOGS = {
+            "log_date": curr_date,
+            "log_time": datetime.datetime.now(),
+            "runtime": time.time()-start_time,
+            } 
+            insert_logs("report_generation", [LOGS], conn, cur)
         elif curr_date.weekday()<4:
             #run daily scripts
             daily_scripts(curr_date,is_holiday)
+            LOGS = {
+            "log_date": curr_date,
+            "log_time": datetime.datetime.now(),
+            "runtime": time.time()-start_time,
+            } 
+            insert_logs("report_generation", [LOGS], conn, cur)
         elif curr_date.weekday() == 5:
             saturday_fb(curr_date)
         else:
             print('nothing')
+            
 
         print("\n\n\tPROCESS COMPLETE FOR DATE {}\n\n".format(str(curr_date)))
     
@@ -402,4 +435,5 @@ def run_scripts_frompy(sdate, edate,is_holiday):
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Total time taken: {elapsed_time} seconds")
+    
     return "Finished"

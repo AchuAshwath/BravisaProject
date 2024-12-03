@@ -3170,16 +3170,16 @@ CREATE TABLE "Reports"."IRS"
 CREATE TABLE "logs"."report_generation"
 (
     "log_date" date,
-    "file_presence" boolean,
-    "BTTList" boolean,
-    "EPS" boolean,
-    "EERS" boolean,
-    "SMR" boolean,
-    "OHLC" boolean,
-    "IndexOHLC" boolean,
-    "PE" boolean,
-    "PRS" boolean,
-    "IRS" boolean,
+    -- "file_presence" boolean,
+    -- "BTTList" boolean,
+    -- "EPS" boolean,
+    -- "EERS" boolean,
+    -- "SMR" boolean,
+    -- "OHLC" boolean,
+    -- "IndexOHLC" boolean,
+    -- "PE" boolean,
+    -- "PRS" boolean,
+    -- "IRS" boolean,
     "log_time" time without time zone,
     "runtime" numeric
 );
