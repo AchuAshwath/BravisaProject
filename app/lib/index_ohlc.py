@@ -23,7 +23,7 @@ import rootpath
 if os.name =='nt':
     my_path =os.getcwd()  # working directory
     filepath = os.path.join(my_path, "IndexOHLCFiles\\")
-    print("File path : ",filepath)
+    print("IndexOHLC File path : ",filepath)
 else:
    my_path = rootpath.detect()
    filepath = os.path.join(my_path, "index-ohlc-files/") 

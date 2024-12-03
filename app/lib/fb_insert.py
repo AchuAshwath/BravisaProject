@@ -22,10 +22,10 @@ import rootpath
 
 if os.name == 'nt':
 	# change it to the directory of the app folder
-	my_path = os.path.abspath(os.path.dirname('D:\\Desktop Copy\\Braviza\\app\\'))
+	my_path = os.getcwd()
 
 	file_path = os.path.join(my_path, "FBFiles\\")
-	print("File path: ", file_path, flush = True)
+	print("FB File path: ", file_path, flush = True)
 else:
 	my_path = os.path.abspath(os.path.dirname(__file__))
 	file_path = os.path.join(my_path, "fb-files/")

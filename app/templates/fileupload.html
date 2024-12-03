@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Lato:wght@100;400&display=swap"
+      rel="stylesheet"
+    />
+    <title>Flask SPA</title>
+    <style>
+      body {
+        font-family: "Lato", sans-serif;
+        background-color: white;
+      }
+      form {
+        width: 85%;
+        margin: 50px auto;
+        padding: 20px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        background-color: white;
+        color: #000;
+      }
+
+      select:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+
+      input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      input:focus {
+        border: 1px solid #1b9cfc;
+        outline: none;
+      }
+      input:hover {
+        font-family: "Lato", sans-serif;
+      }
+      .button {
+        width: 30%;
+        padding: 10px;
+        border: none;
+        border-radius: 8px;
+        background-color: #1b9cfc;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .button:hover {
+        background-color: #00bcff;
+      }
+
+      #result {
+        margin-top: 20px;
+      }
+      .menu-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      .date-container {
+        display: flex;
+        justify-content: space-around;
+      }
+      select {
+        width: 60%;
+      }
+      .flex-center {
+        display: flex;
+        justify-content: center;
+      }
+      .zero-margin {
+        margin: 0 0 0 0;
+      }
+      .margin-bottom {
+        margin-bottom: 45px;
+      }
+      .width-30 {
+        width: 40%;
+      }
+      .width-25 {
+        width: 37.5%;
+      }
+      .font {
+        font-family: "Lato", sans-serif;
+      }
+      .inline-flex {
+        display: inline-flex;
+      }
+      .space-around {
+        justify-content: space-around;
+      }
+      .width-100 {
+        width: 100%;
+      }
+      a {
+        text-decoration: none;
+      }
+      #FBdrop_zone {
+        width: 100%;
+        /* width: 200px; */
+        height: 90px;
+        cursor: pointer;
+}      
+    </style>
+</head>
+<body>
+    <form id="uploadForm" method="POST" action="/uploadfile" enctype="multipart/form-data">
+        <!-- form to upload files -->
+        <div class="flex-center">
+            <img
+            src="../static/bravisa-logo.jpg"
+            alt="Bravisa Logo"
+            style="margin-bottom: 20px; margin-top: 10px"
+            width="300"
+            height="100"
+          />
+        </div>
+        <div
+            class="inline-flex"
+            style="border-top: 1px solid #ccc; width: 100%; margin-bottom: 20px;"
+        >
+            <a href="/" class="font button">Generate report</a>
+            <a
+                href="/industrymap"
+                class="font button"
+                style="
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 0px;
+                    width: 33.3%;
+                "
+            >Industry Mapping</a>
+            <a
+                href="/"
+                class="font button"
+                style="background-color: white; color: #000; width: 33.3%"
+                style="
+                    border-top-left-radius: 0px;
+                    border-top-right-radius: 0px;
+                    width: 65%;
+                "
+            >File Upload</a>
+        </div>
+
+        <!-- drop FB files Zip here -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div>
+              <label for="file">FB 01 zip :</label>
+              <div id="FBdrop_zone" class="flex-center">
+                  <input type="file" name="FB01zip" id="FB01zip" />
+              </div>
+          </div>
+          <div>
+              <label for="file">FB 02 zip :</label>
+              <div id="FBdrop_zone" class="flex-center">
+                  <input type="file" name="FB02zip" id="FB02zip" />
+              </div>
+          </div>
+          <div>
+            <label for="file">FB 03 zip :</label>
+            <div id="FBdrop_zone" class="flex-center">
+                <input type="file" name="FB03zip" id="FB03zip" />
+            </div>
+        </div>
+
+      </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <label for="file">NSE - OHLC file :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="nse_file" id="nse_file" />
+                </div>
+            </div>
+            <div>
+                <label for="file">BSE - OHLC file :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="bse_file" id="bse_file" />
+                </div>
+            </div>
+        </div>
+
+        <label for="file">IndexOHLC file :</label>
+        <div id="FBdrop_zone" class="flex-center">
+            <input type="file" name="IndexOHLCFile" id="IndexOHLCFile" />
+        </div>
+
+        <div class="margin-bottom" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <label for="file">ind_nifty500list.csv :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="ind_nifty500list.csv" id="ind_nifty500list.csv" />
+                </div>
+            </div>
+            <div>
+                <label for="file">BSE500_Index.csv :</label>
+                <div id="FBdrop_zone" class="flex-center">
+                    <input type="file" name="BSE500_Index.csv" id="BSE500_Index.csv" />
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex-center">
+            <button class="button" type="submit">Upload</button>
+        </div>
+        <div id="responseMessage" class="flex-center"></div>
+    </form>
+
+
+    <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+    <script>
+      $(document).ready(function () {
+          $('#uploadForm').on('submit', function (event) {
+              event.preventDefault(); // Prevent traditional form submission
+  
+              var formData = new FormData(this);
+  
+              $.ajax({
+                  url: '/uploadfile', // Flask endpoint
+                  type: 'POST',
+                  data: formData,
+                  contentType: false,
+                  processData: false,
+                  success: function (response) {
+                      // Display the success response
+                      $('#responseMessage').html(
+                          `<p style="color: green;">${response.message}</p>
+                           <p>Files: ${response.files.join(', ')}</p>`
+                      );
+                  },
+                  error: function (xhr, status, error) {
+                      // Display the error response
+                      $('#responseMessage').html(
+                          `<p style="color: red;">Error: ${xhr.responseText}</p>`
+                      );
+                  }
+              });
+          });
+      });
+  </script>
+  
+  
+</body>
+</html>

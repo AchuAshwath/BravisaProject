@@ -20,7 +20,8 @@ import pandas as pd
 import warnings
 import concurrent.futures
 import time
-from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER
+import zipfile
+from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER
 
 from flask import Flask, render_template, request, jsonify
 # Assuming necessary imports and configurations are done here
@@ -36,7 +37,11 @@ def check_files_presence(date, is_holiday):
     # eqisin = date.strftime("%d%m%y")
     indall = date.strftime("%d%m%Y")
 
-    
+    print("OHLC:", OHLC_FOLDER)
+    print("INDEX_OHLC:", INDEX_OHLC_FOLDER)
+    print("INDEX_FILES:", INDEX_FILES_FOLDER)
+    print("FB_FOLDER:", FB_FOLDER)  
+     
     # Check if it's the start of the month
     if date.day == 1:
         # Check if all required files are present along with index files
@@ -47,17 +52,100 @@ def check_files_presence(date, is_holiday):
             #os.path.isfile(os.path.join(index_files_folder, "BSE500_Index.csv"))):
             return True
         else:
+            print("Files not found on the first day of the month:", date.strftime("%Y-%m-%d"))
             return False
     else:
         # Check remaining files for other dates of the month
+        if not(os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_BSE_CM_0_0_0_" + eqisin + "_F_0000.csv"))):
+            print("BSE file not found for date:", date.strftime("%Y-%m-%d"))
+        
+        if not(os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_NSE_CM_0_0_0_"+ cmbhav +"_F_0000.csv"))):
+            print("NSE file not found for date:", date.strftime("%Y-%m-%d"))
+        
+        if not(os.path.isfile(os.path.join(INDEX_OHLC_FOLDER, "ind_close_all_" + indall + ".csv"))):
+            print("Index file not found for date:", date.strftime("%Y-%m-%d"))
+        
+        
         if (os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_BSE_CM_0_0_0_" + eqisin + "_F_0000.csv")) and
             os.path.isfile(os.path.join(OHLC_FOLDER, "BhavCopy_NSE_CM_0_0_0_"+ cmbhav +"_F_0000.csv" )) and
             os.path.isfile(os.path.join(INDEX_OHLC_FOLDER, "ind_close_all_" + indall + ".csv"))):
             return True
         else:
+            print("Files not found for date:", date.strftime("%Y-%m-%d"))
             return False
 
 app = Flask(__name__)
+
+@app.route('/fileupload')
+def fileupload():
+    return render_template('fileupload.html')
+
+@app.route('/uploadfile', methods=['POST'])
+def upload_file():
+    saved_files = []
+
+    # Handle FB file upload
+    for i in range(1, 4):
+        fileupload_name = 'FB0'+str(i)+'zip'  
+        fb_file = request.files.get(fileupload_name)
+        if fb_file and fb_file.filename:
+            if fb_file.filename.endswith('.zip'):
+                zip_folder_name = os.path.join(FB_FOLDER, os.path.splitext(fb_file.filename)[0])
+                os.makedirs(zip_folder_name, exist_ok=True)
+                with zipfile.ZipFile(fb_file, 'r') as zip_ref:
+                    zip_ref.extractall(zip_folder_name)
+                saved_files.append(fb_file.filename)
+
+    # Handle NSE file upload
+    nse_file = request.files.get('nse_file')
+    if nse_file and nse_file.filename:
+        nse_file_path = os.path.join(OHLC_FOLDER, nse_file.filename)
+        nse_file.save(nse_file_path)
+        saved_files.append(nse_file.filename)
+
+    # Handle BSE file upload
+    bse_file = request.files.get('bse_file')
+    if bse_file and bse_file.filename:
+        bse_file_path = os.path.join(OHLC_FOLDER, bse_file.filename)
+        bse_file.save(bse_file_path)
+        saved_files.append(bse_file.filename)
+        
+    # Handle IndexOHLC file upload
+    index_ohlc_file = request.files.get('IndexOHLCFile')
+    if index_ohlc_file and index_ohlc_file.filename:
+        index_ohlc_file_path = os.path.join(INDEX_OHLC_FOLDER, index_ohlc_file.filename)
+        index_ohlc_file.save(index_ohlc_file_path)
+        saved_files.append(index_ohlc_file.filename)
+    
+    # Handle index-file1 file upload
+    index_file1 = request.files.get('ind_nifty500list.csv')
+    if index_file1 and index_file1.filename:
+        index_file1_path = os.path.join(INDEX_FILES_FOLDER, index_file1.filename)
+        # before saving the file, check filename is ind_nifty500list.csv
+        if index_file1.filename == 'ind_nifty500list.csv':
+            index_file1.save(index_file1_path)
+            saved_files.append(index_file1.filename)
+        else:
+            return jsonify({'message': 'Invalid file uploaded. Please upload ind_nifty500list.csv file.'})
+
+        
+    # Handle index-file2 file upload
+    index_file2 = request.files.get('BSE500_Index.csv')
+    if index_file2 and index_file2.filename:
+        index_file2_path = os.path.join(INDEX_FILES_FOLDER, index_file2.filename)
+        if index_file2.filename == 'BSE500_Index.csv':
+            index_file2.save(index_file2_path)
+            saved_files.append(index_file2.filename)
+        else:
+            return jsonify({'message': 'Invalid file uploaded. Please upload BSE500_Index.csv file.'})
+
+    # Handle missing files
+    if not saved_files:
+        return jsonify({'message': 'No files uploaded', 'files': []})
+
+    return jsonify({'message': 'Files uploaded successfully', 'files': saved_files})
+
+    
 
 @app.route('/')
 def index():
@@ -137,7 +225,7 @@ def process():
     warnings.filterwarnings("ignore", category=UserWarning)
 
     db = DB_Helper()
-    dbURL = db.engine()
+    # dbURL = db.engine()
     conn = db.db_connect()
     cur = conn.cursor()
     start_date = request.form.get('start_date')
@@ -156,7 +244,7 @@ def process():
         return jsonify({'message': 'Invalid date format. Please use YYYY-MM-DD.'})
 
     if main_menu == "insert_data":
-        insert_data(start_date, end_date, dbURL, conn, cur)
+        insert_data(start_date, end_date, conn, cur)
         return jsonify({'message': 'Insert data processing successful'})
 
     elif main_menu == "generate_report":
@@ -181,7 +269,7 @@ def process():
 
         for i in range(num_days):
             current_date = start_date + timedelta(days=i)
-            insert_data(current_date, current_date, dbURL, conn, cur)
+            insert_data(current_date, current_date, conn, cur)
             result = report_generation(current_date, current_date, is_holiday)
             if not result:
                 return jsonify({'message': 'File not found for date: ' + current_date.strftime("%Y-%m-%d")})
@@ -237,7 +325,7 @@ def process():
     else:
         return jsonify({'message': 'Invalid main_menu value'})
 
-def insert_data(start_date, end_date, dbURL, conn, cur):
+def insert_data(start_date, end_date, conn, cur):
     date_format = "%d%m%Y"
     current_date = start_date
     while current_date <= end_date:
@@ -528,8 +616,16 @@ def download_csv(csv, report, filename):
                     }
         # map the index_mapping to the IndexName column
         csv['IndexName'] = csv['IndexName'].map(index_mapping)
-            
-    csv.to_csv(filename, index=False)
+        
+    try:        
+        csv.to_csv(filename, index=False)
+    except OSError:
+        # create DownloadedFiles folder if it doesn't exist on the cwd
+        os.makedirs('DownloadedFiles')
+        csv.to_csv(filename, index=False)
+    finally:
+        print("File saved successfully")
+        
     
 
 
