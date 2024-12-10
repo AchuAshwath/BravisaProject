@@ -40,7 +40,7 @@ class Check_Helper:
             fb.py.
         """
         # check if the folder with pathname_tocheck exists in the FB_FOLDER
-        if not os.path.isdir(FB_FOLDER + pathname_tocheck):
+        if not os.path.isdir(os.path.join(FB_FOLDER, pathname_tocheck)):
             # if not throw an error
             print(pathname_tocheck, "Folder does not exist")
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), pathname_tocheck)
