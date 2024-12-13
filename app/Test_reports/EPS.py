@@ -31,7 +31,8 @@ class EPS:
     
     def get_closest_quarter(self, target):
         """Fetch Closest quarter from the current date """
-        
+        if isinstance(target, pd.Timestamp):
+            target = target.date()
         # candidate list, nicely enough none of these
         # are in February, so the month lengths are fixed
         candidates = [
