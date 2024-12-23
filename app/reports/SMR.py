@@ -393,7 +393,7 @@ class SMR:
 
 		exportfilename = "ratiosmerge_export.csv"
 		exportfile = open(exportfilename,"w")
-		ratios_merge_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r' )
+		ratios_merge_list.to_csv(exportfile, header=True, index=False, lineterminator='\r' )
 		exportfile.close()
 			
 		copy_sql = """
@@ -646,7 +646,7 @@ class SMR:
 
 		exportfilename = "smr_export.csv"	
 		exportfile = open(exportfilename,"w")
-		btt_ratios_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
+		btt_ratios_list.to_csv(exportfile, header=True, index=False, lineterminator='\r')
 		exportfile.close()
 
 		copy_sql = """
@@ -816,5 +816,5 @@ class SMR:
 		exportfilename = "__SMR_"+name+".csv"
 		exportfile = open(exportfilename,"w")
 
-		table.to_csv(exportfile, header=True, index=False, float_format="%2f", lineterminator='\r')
+		table.to_csv(exportfile, header=True, index=False, lineterminator='\r')
 		exportfile.close()

@@ -870,7 +870,7 @@ class PRS:
 		exportfilename = name+"_export.csv"
 		exportfile = open(exportfilename, "w")
 
-		table.to_csv(exportfile, header=True, index=False,float_format="%.2f", lineterminator='\r')
+		table.to_csv(exportfile, header=True, index=False, lineterminator='\r')
 		exportfile.close()
 
 		# os.remove("exportfilename")
