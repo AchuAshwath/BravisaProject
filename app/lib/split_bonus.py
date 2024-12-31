@@ -447,21 +447,33 @@ def main(curr_date):
     cur = conn.cursor()
 
     curr_date = curr_date.strftime("%Y-%m-%d")
+    
+    log_query = """
+                SELECT * FROM "logs"."split_bonus" 
+                WHERE "log_date" = %s   
+    """
 	
-    print("Getting splits data for date", curr_date)
-    split = get_splits(curr_date, conn)
-
-    print("Getting bonus data for date", curr_date)
-    bonus = get_bonus(curr_date, conn)
-
-    print("Updating OHLC")
-    update_ohlc(split, bonus, conn, cur, curr_date)
-
-    end_time = time.time()
-    runtime = end_time - start_time
-
+    log_df = sqlio.read_sql_query(log_query, con=conn, params=[curr_date])
     
-    print("Updating Shareholding")
-    update_shareholding(split, bonus, conn, cur, curr_date, runtime)
-    
+    if not(log_df.empty):
+        print("Already ran for date", curr_date)
+        return
+    else:
+        print("Running for date", curr_date)
+        print("Getting splits data for date", curr_date)
+        split = get_splits(curr_date, conn)
+
+        print("Getting bonus data for date", curr_date)
+        bonus = get_bonus(curr_date, conn)
+
+        print("Updating OHLC")
+        update_ohlc(split, bonus, conn, cur, curr_date)
+
+        end_time = time.time()
+        runtime = end_time - start_time
+
+        
+        print("Updating Shareholding")
+        update_shareholding(split, bonus, conn, cur, curr_date, runtime)
+        
     conn.close()

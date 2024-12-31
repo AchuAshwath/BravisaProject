@@ -1069,7 +1069,7 @@ class PRS:
 
 		if(bttlist['Close'].isnull().all()):
 			print("No OHLC Data for this date")
-			raise ValueError('OHLC data not found for date:')
+			# raise ValueError('OHLC data not found for date:')
 
 		print("Calculating High/Low & Value Avg")
 		bttlist = self.fetch_highlow_prs(curr_date, bttlist, conn)

@@ -1390,7 +1390,7 @@ class EPS:
         # Creating table
         table = table[['CompanyCode', 'NSECode', 'BSECode', 'CompanyName', 'ISIN', 'Months', 'Quarter', 'YearEnding', \
         'Q1 EPS', 'Q1 EPS Growth' , 'Q1 Sales','Q1 Sales Growth' , 'Q2 EPS', 'Q2 EPS Growth', 'Q2 Sales','Q2 Sales Growth', \
-        'TTM1 EPS', 'TTM1 Sales', 'TTM2 EPS', 'TTM2 Sales', 'TTM3 EPS', 'TTM3 Sales', 'NPM', 'EPS Rating', 'EPS Ranking', 'EPS Date', 'E_ERS']]
+        'TTM1 EPS', 'TTM1 Sales', 'TTM2 EPS', 'TTM2 Sales', 'TTM3 EPS', 'TTM3 Sales', 'NPM', 'EPS Rating', 'EPS Ranking', 'EPS Date', 'E_ERS', 'Type']]
 
         # print(table)
 
@@ -1880,6 +1880,10 @@ class EPS:
             print("Calculating EPS Rating", flush = True)
             quarterly_eps_list = self.eps_rating(quarterly_eps_list, conn,today)	
             return_list = quarterly_eps_list
+            if 'Type' not in return_list.columns:
+                return_list['Type'] = np.nan
+
+            return_list['Type'] = 'S'
             print("Merging Null Set Back into list", flush = True)
             quarterly_eps_list = pd.concat([quarterly_eps_list, quarterly_eps_list_null], sort=True)
             print("Calculating Stock Percentile Ranking", flush = True)
@@ -1942,12 +1946,15 @@ class EPS:
         """
         quarterly_eps_list, quarterly_eps_list_null = self.current_sa_eps_report(conn,cur, today)
         c_quarterly_eps_list = self.current_cons_eps_report(conn, cur, today)
-		
+                
+        if 'Type' not in c_quarterly_eps_list.columns:
+            c_quarterly_eps_list['Type'] = np.nan 
         
         for index, row in c_quarterly_eps_list.iterrows():
             if(str(row["TTM3 EPS"]) != 'nan'):
                 quarterly_eps_list.drop(quarterly_eps_list.loc[quarterly_eps_list['CompanyCode']==row['CompanyCode']].index, inplace=True)
-                row['CompanyName'] += " (C)"
+                # row['CompanyName'] += " (C)"
+                row['Type'] = 'C'
 
                 try:
                     quarterly_eps_list = quarterly_eps_list.append(row, ignore_index = True)

@@ -797,20 +797,9 @@ class FRS:
 
 		print("\nGenerating MF List for today:", curr_date)
 		self.compile_mf_list(conn,cur,curr_date)
-		print("Compiled MF merge list")
+		print("Compiled MF merge list") 	
 
-	def generate_current_mfrank(self, curr_date, conn,cur):
-		""" Generate current mfrank,
 
-		Operation:
-			fetch the data of MFList and MF Rank for current date,
-			and generate MF Rank for current date.
-		"""
-
-		self.generate_current_mflist(conn,cur, curr_date)
-		self.calc_mf_rank(conn,cur,curr_date)
-
-		print("Completed MF Rank generation")
 
 	def export_table(self, name,table):
 		exportfilename = "FRS_"+name+"_export.csv"
@@ -887,3 +876,15 @@ class FRS:
 		self.calc_nav_rank(conn,cur,curr_date)
 		print("Completed NAV Rank and category average")
 
+	def generate_current_mfrank(self, curr_date, conn,cur):
+		""" Generate current mfrank,
+
+		Operation:
+			fetch the data of MFList and MF Rank for current date,
+			and generate MF Rank for current date.
+		"""
+
+		self.generate_current_mflist(conn,cur, curr_date)
+		self.calc_mf_rank(conn,cur,curr_date)
+
+		print("Completed MF Rank generation")
