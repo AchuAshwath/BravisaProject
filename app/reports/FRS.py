@@ -447,10 +447,12 @@ class FRS:
 							ORDER BY "SecurityCode", "DateTime" DESC ;'
 		scheme_nav_prices_list = sqlio.read_sql_query(scheme_nav_sql, con = conn)
 
+		scheme_nav_merge_list['SecurityCode'] = scheme_nav_merge_list['SecurityCode'] + 0.002066		
+  
 		# self.export_table("31_SchemeNAVCurrentPrices", scheme_nav_prices_list)
 		scheme_nav_prices_list = pd.merge(scheme_nav_merge_list, scheme_nav_prices_list, left_on = 'SecurityCode', right_on = 'SecurityCode', 
 										how = 'left')
-
+		
 		# self.export_table("32_merge_22_31", scheme_nav_prices_list)
 		scheme_nav_prices_list = scheme_nav_prices_list.rename(columns = {'SchemeCode_x' : 'SchemeCode', 'SchemeName_x' : 'SchemeName', \
 																	'SchemeCategoryDescription_x' : 'SchemeCategoryDescription', 'AUM_x' : 'AUM' })

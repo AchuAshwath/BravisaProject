@@ -3845,8 +3845,8 @@ class FB_Insert:
 					conn.commit()
 					f.close()
 				os.remove(exportfilename)
-			except:
-				print("Error in insert_shareholding()", flush = True)
+			except Exception as e:
+				print(f"Error in insert_shareholding(): {e}", flush=True)
 				conn.rollback()
 
 		else:

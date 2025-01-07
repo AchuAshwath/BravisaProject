@@ -312,7 +312,7 @@ def process():
             "PRS": ('"Reports"."PRS"', '"Date"'),
             "SMR": ('"Reports"."SMR"', '"SMRDate"'),
             "IRS": ('"Reports"."IRS"', '"GenDate"'),
-            "FRS-NavRank": ('"Reports"."FRS-NAVRank"', '"Date"'),
+            "FRS-NAVCategoryAvg": ('"Reports"."FRS-NAVCategoryAvg"', '"Date"'),
             "CombinedRS": ('"Reports"."CombinedRS"', '"GenDate"')
         }
 
@@ -417,7 +417,7 @@ def delete_data(startdate, enddate, delete_variable, conn, cur):
 def download_csv(csv, report, filename):
     dyn_list =  {'CompanyCode', 'NSECode', 'BSECode', 'CompanyName', 'ISIN'}
     columns_to_convert = {'EPS':['Q1 Sales', 'Q2 Sales'], 'ERS':['Q1 Sales', 'Q2 Sales'],'STANDALONE_ERS':['Q1 Sales', 'Q2 Sales'], 'STANDALONE_EPS':['Q1 Sales', 'Q2 Sales'], 'Consolidated_EPS':['Q1 Sales', 'Q2 Sales'],'Consolidated_ERS':['Q1 Sales', 'Q2 Sales'], 'EERS':['Q1 Sales', 'Q2 Sales'],'STANDALONE_EERS':['Q1 Sales', 'Q2 Sales'],'Consolidated_EERS':['Q1 Sales', 'Q2 Sales'], 'PRS':['Value', 'Value Average', 'Market Cap Value'], 'IRS':['OS', 'Volume'], "SMR": ('"Reports"."SMR"', '"SMRDate"'),
-            "FRS-NavRank": [],
+            "FRS-NAVCategoryAvg": [],
             "CombinedRS": []}
     # loop through columns
     for col in csv.columns:
