@@ -17,7 +17,7 @@ import time
 import math
 from datetime import timedelta
 import utils.date_set as date_set
-
+from decimal import Decimal, ROUND_DOWN
 
 class FRS:
 	""" Generating FRS Rank and NAV rank for current date
@@ -60,14 +60,12 @@ class FRS:
 		# print("SQL:", scheme_master_sql)
 
 
-		scheme_aum_sql = """
-		SELECT * FROM `SchemePortfolioHeader`
-		WHERE `SchemePlanCode` = 2066
-		AND `HoldingDate` <= %s
-		GROUP BY `SchemeCode`
-		ORDER BY `HoldingDate` DESC
-		"""
-		scheme_aum_list = pd.read_sql_query(scheme_aum_sql, con=conn, params=(date.strftime("%Y-%m-%d"),))
+		scheme_aum_sql = 'SELECT distinct on("SchemeCode") * FROM public."SchemePortfolioHeader" \
+						WHERE "SchemePlanCode" = 2066 \
+						AND "HoldingDate" <= \'' +date.strftime("%Y-%m-%d")+ '\' \
+						order by "SchemeCode", "HoldingDate" desc ;'
+		
+		scheme_aum_list = sqlio.read_sql_query(scheme_aum_sql, con = conn)
 
 		scheme_mf_list = pd.merge(scheme_master_list, scheme_aum_list, left_on = 'SchemeCode', right_on = 'SchemeCode', how = 'left')
 		# print("Number of schemes:", len(scheme_mf_list))
@@ -101,16 +99,15 @@ class FRS:
 		holding_date_3 = holding_date_3.strftime("%Y-%m-%d")
 
 
-		scheme_wise_portfolio_sql = """
-		SELECT * from `SchemewisePortfolio`
-		WHERE `SchemePlanCode` = 2066
-		AND `InstrumentName` = %s
-		AND `ModifiedDate` <= %s
-		AND `HoldingDate` in (%s, %s, %s)
-		GROUP BY `SchemeCode`, `InvestedCompanyCode`
-		ORDER BY `HoldingDate` DESC
-		"""
-		scheme_wise_portfolio_list = pd.read_sql_query(scheme_wise_portfolio_sql, con=conn, params=('Equity', date.strftime("%Y-%m-%d"), holding_date, holding_date_1, holding_date_2))
+		scheme_wise_portfolio_sql = 'SELECT DISTINCT ON ("SchemeCode", "InvestedCompanyCode") * from public."SchemewisePortfolio" \
+									WHERE "SchemePlanCode" = 2066 \
+									AND "InstrumentName" = \'' +'Equity'+ '\' \
+									AND "ModifiedDate" <= \'' +date.strftime("%Y-%m-%d")+ '\' \
+									AND "HoldingDate" in (\''+holding_date+'\', \''+holding_date_1+'\', \''+holding_date_2+'\') \
+									order by "SchemeCode",  "InvestedCompanyCode", "HoldingDate" desc;'
+		# print("SQL:", scheme_wise_portfolio_sql)
+							
+		scheme_wise_portfolio_list = sqlio.read_sql_query(scheme_wise_portfolio_sql, con = conn)
 
 		scheme_mf_list = pd.merge(scheme_mf_list, scheme_wise_portfolio_list, left_on = 'SchemeCode', \
 									right_on = 'SchemeCode' , how = 'left')
@@ -132,7 +129,7 @@ class FRS:
 			Merge data of scheme mf list and IndustryMapping.
 		"""
 		
-		industry_info_sql = "SELECT * FROM `IndustryMapping`;"
+		industry_info_sql = 'select *  from public."IndustryMapping";'
 		industry_info = pd.read_sql_query(industry_info_sql, conn)
 		
 		scheme_mf_list = pd.merge(scheme_mf_list, industry_info[['IndustryCode', 'Industry']], left_on = 'IndustryCode', \
@@ -158,13 +155,10 @@ class FRS:
 			Value of market cap to map market capitalisation.
 		"""
 
-		pe_sql = """
-		SELECT * FROM `PE`
-		WHERE `GenDate` <= %s
-		GROUP BY `CompanyCode`
-		ORDER BY `GenDate` DESC
-		"""
-		pe_list = pd.read_sql_query(pe_sql, con=conn, params=(date.strftime("%Y-%m-%d"),))
+		pe_sql = 'SELECT DISTINCT ON("CompanyCode") * FROM public."PE" \
+				WHERE "GenDate" <=  \'' +date.strftime("%Y-%m-%d")+ '\'	\
+				ORDER BY "CompanyCode", "GenDate" DESC;'
+		pe_list = sqlio.read_sql_query(pe_sql, con = conn)
 
 		for index, row in scheme_mf_list.iterrows():
 
@@ -207,9 +201,9 @@ class FRS:
 		scheme_mf_list = scheme_mf_list.astype({"SchemePlanCode": str})
 		scheme_mf_list["SchemePlanCode"] = scheme_mf_list["SchemePlanCode"].replace('-1', np.nan)
 
-		scheme_mf_list['AUM'] = scheme_mf_list['AUM'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_mf_list['Quantity'] = scheme_mf_list['Quantity'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_mf_list['Percentage'] = scheme_mf_list['Percentage'].replace(r'[\$,]', '', regex=True).astype(float)
+		scheme_mf_list['AUM'] = scheme_mf_list['AUM'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_mf_list['Quantity'] = scheme_mf_list['Quantity'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_mf_list['Percentage'] = scheme_mf_list['Percentage'].replace(r'[?$, ]', '', regex=True).astype(float)
 
 		scheme_mf_list = scheme_mf_list[['SchemeCode', 'SchemeName', 'SchemePlanCode' ,'SchemeCategoryDescription', 'MainCategory', 'SchemeTypeDescription', \
 										'AUM', 'HoldingDate', 'InvestedCompanyCode', 'InvestedCompanyName', 'Industry', 'Quantity', 'Percentage', \
@@ -219,20 +213,19 @@ class FRS:
 
 		exportfilename = "schememerge_export.csv"
 		exportfile = open(exportfilename,"w",encoding="utf-8")
-		scheme_mf_list.to_csv(exportfile, header=True, index=False, line_terminator='\r')
+		scheme_mf_list.to_csv(exportfile, header=True, index=False, lineterminator='\r')
 		exportfile.close()
 		
 		
-		load_data_sql = """
-		LOAD DATA INFILE %s INTO TABLE `MFMergeList`
-		FIELDS TERMINATED BY ',' 
-		ENCLOSED BY '"'
-		LINES TERMINATED BY '\n'
-		IGNORE 1 ROWS;
-		"""
-		with codecs.open(exportfilename, "r", encoding='utf-8', errors='ignore') as f:
-			cur.execute(load_data_sql, (f.name,))
+		copy_sql = """
+				COPY "public"."MFMergeList" FROM stdin WITH CSV HEADER
+				DELIMITER as ','
+				"""
+
+		with codecs.open(exportfilename, "r",encoding='utf-8', errors='ignore') as f:
+			cur.copy_expert(sql=copy_sql, file=f)
 			conn.commit()
+			f.close()
 		os.remove(exportfilename)
 
 	def calc_mf_exposure(self, conn, date):
@@ -247,30 +240,32 @@ class FRS:
 			Value of MF Rank.
 		"""
 
-		mf_rank_unique_sql = """
-		SELECT * FROM `MFMergeList`
-		WHERE `GenDate` = %s
-		GROUP BY `InvestedCompanyCode`
-		"""
-		mf_rank_unique_list = pd.read_sql_query(mf_rank_unique_sql, con=conn, params=(date.strftime("%Y-%m-%d"),))
+		mf_rank_unique_sql = 'SELECT DISTINCT ON("InvestedCompanyCode") * FROM public."MFMergeList" \
+							WHERE "GenDate" = \'' +date.strftime("%Y-%m-%d")+ '\' ; '
+		
+		mf_rank_unique_list = sqlio.read_sql_query(mf_rank_unique_sql, con = conn)		
 
-		stock_qty_sql = """
-		SELECT `InvestedCompanyCode`, SUM(`Quantity`) AS qty_sum
-		FROM `MFMergeList`
-		WHERE `GenDate` = %s
-		GROUP BY `InvestedCompanyCode`
-		"""
-		stock_qty_list = pd.read_sql_query(stock_qty_sql, con=conn, params=(date.strftime("%Y-%m-%d"),))
 
-		shareholding_sql = """
-		SELECT * FROM `ShareHolding`
-		WHERE `SHPDate` <= %s
-		GROUP BY `CompanyCode`
-		ORDER BY `SHPDate` DESC
-		"""
-		shareholding_list = pd.read_sql_query(shareholding_sql, con=conn, params=(date.strftime("%Y-%m-%d"),))
+		stock_qty_sql = 'SELECT \
+						"InvestedCompanyCode", \
+						SUM ("Quantity") AS qty_sum \
+						FROM \
+						public."MFMergeList" \
+						WHERE "GenDate" = \'' +date.strftime("%Y-%m-%d")+ '\'	\
+						GROUP BY \
+						"InvestedCompanyCode";'
 
-		shareholding_list[shareholding_list.columns[2:36]] = shareholding_list[shareholding_list.columns[2:36]].replace(r'[\$,]', '', regex=True).astype(float)
+		stock_qty_list = sqlio.read_sql_query(stock_qty_sql, con = conn)
+
+
+
+		shareholding_sql = 'SELECT distinct on("CompanyCode") * FROM public."ShareHolding" \
+							WHERE "SHPDate" <= \'' +date.strftime("%Y-%m-%d")+ '\'  \
+							order by "CompanyCode", "SHPDate" desc ;'
+							
+		shareholding_list = sqlio.read_sql_query(shareholding_sql, con = conn)	
+
+		shareholding_list[shareholding_list.columns[2:36]] = shareholding_list[shareholding_list.columns[2:36]].replace(r'[?$, ]', '', regex=True).astype(float)
 
 
 		print("Index Size for MF: ", len(mf_rank_unique_list.index))
@@ -286,6 +281,7 @@ class FRS:
 
 
 			mf_exposure = (quantity/outstanding_shares)*100 if outstanding_shares != np.nan and quantity != np.nan else np.nan
+			# mf_exposure = (quantity/outstanding_shares)*100 if outstanding_shares != np.nan and outstanding_shares != 0 and quantity != np.nan and quantity != 0 else np.nan
 
 
 			mf_rank_unique_list.loc[index, 'Quantity'] = quantity
@@ -318,20 +314,18 @@ class FRS:
 
 		exportfilename = "mf_rank_export.csv"
 		exportfile = open(exportfilename,"w",encoding="utf-8")
-		mf_rank_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", line_terminator='\r')
+		mf_rank_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
 		exportfile.close()
 			
 		
-		load_data_sql = """
-		LOAD DATA INFILE %s INTO TABLE `Reports`.`FRS-MFRank`
-		FIELDS TERMINATED BY ',' 
-		ENCLOSED BY '"'
-		LINES TERMINATED BY '\n'
-		IGNORE 1 ROWS;
-		"""
-		with codecs.open(exportfilename, "r", encoding='utf-8', errors='ignore') as f:
-			cur.execute(load_data_sql, (f.name,))
+		copy_sql = """
+				COPY "Reports"."FRS-MFRank" FROM stdin WITH CSV HEADER
+				DELIMITER as ','
+				"""
+		with codecs.open(exportfilename, "r",encoding='utf-8', errors='ignore') as f:
+			cur.copy_expert(sql=copy_sql, file=f)
 			conn.commit()
+			f.close()
 		os.remove(exportfilename)
 
 	def scheme_master_nav_list(self, conn, date):
@@ -345,22 +339,19 @@ class FRS:
 			Merge data of SchemeMaster and SchemePortfolioHeader.
 		"""
 
-		scheme_sql = """
-		SELECT * FROM `SchemeMaster`
-		WHERE `SchemePlanCode` = 2066
-		AND `SchemeTypeDescription` = %s
-		AND NOT (`SchemeName` LIKE %s OR `SchemeName` LIKE %s)
-		"""
-		scheme_list = pd.read_sql_query(scheme_sql, con=conn, params=('Open Ended', '%Direct%', '%Institutional%'))
+		scheme_sql = 'SELECT * FROM public."SchemeMaster" \
+							WHERE "SchemePlanCode" = 2066 \
+							AND "SchemeTypeDescription" = \'' +'Open Ended'+ '\' \
+							and "SchemeName" @@ to_tsquery( \'' +'!Direct & !Institutional'+ '\');'
+		scheme_list = sqlio.read_sql_query(scheme_sql, con = conn)
 
-		scheme_aum_sql = """
-		SELECT * FROM `SchemePortfolioHeader`
-		WHERE `SchemePlanCode` = 2066
-		AND `HoldingDate` <= %s
-		GROUP BY `SchemeCode`
-		ORDER BY `HoldingDate` DESC
-		"""
-		scheme_aum_list = pd.read_sql_query(scheme_aum_sql, con=conn, params=(date.strftime("%Y-%m-%d"),))
+		# self.export_table("01_SchemeMaster", scheme_list)
+		scheme_aum_sql = 'SELECT distinct on("SchemeCode") * FROM public."SchemePortfolioHeader" \
+						WHERE "SchemePlanCode" = 2066 \
+						AND "HoldingDate" <= \'' +date.strftime("%Y-%m-%d")+ '\' \
+						order by "SchemeCode", "HoldingDate" desc ;'
+		
+		scheme_aum_list = sqlio.read_sql_query(scheme_aum_sql, con = conn)
 		# self.export_table("02_SchemePortfolioHeader", scheme_aum_list)
 
 		
@@ -387,8 +378,10 @@ class FRS:
 			merge data of scheme master list and SchemeNAVMaster.
 		"""
 
-		scheme_nav_master_sql = "SELECT * FROM `SchemeNAVMaster` WHERE `SchemePlanCode` = 2066;"
-		scheme_nav_master_list = pd.read_sql_query(scheme_nav_master_sql, con=conn)
+		scheme_nav_master_sql = 'SELECT * FROM public."SchemeNAVMaster" \
+								WHERE "SchemePlanCode" = 2066 ;'
+
+		scheme_nav_master_list = sqlio.read_sql_query(scheme_nav_master_sql, con = conn)
 
 		# self.export_table("11_SchemeNAVMaster", scheme_nav_master_list)
 		scheme_nav_merge_list = pd.merge(scheme_master_list, scheme_nav_master_list, left_on = 'SchemeCode', \
@@ -418,8 +411,8 @@ class FRS:
 			to get BTT MF Categories for schemes.
 		"""
 
-		sql = "SELECT `scheme_code`, `btt_scheme_code`, `btt_scheme_category` FROM `mf_category_mapping`;"
-		btt_mf_category = pd.read_sql_query(sql, con=conn)
+		sql = 'SELECT "scheme_code", "btt_scheme_code", "btt_scheme_category" FROM public.mf_category_mapping;'
+		btt_mf_category = sqlio.read_sql_query(sql, con = conn)
 
 		# self.export_table("21_mf_category_mapping", btt_mf_category)
 		# self.export_table("02_scheme_nav_merge_list", scheme_nav_merge_list)
@@ -450,33 +443,40 @@ class FRS:
 
 		back_date = date + datetime.timedelta(-3)
 
-		scheme_nav_sql = """
-		SELECT * FROM `SchemeNAVCurrentPrices`
-		WHERE `DateTime` >= %s
-		GROUP BY `SecurityCode`
-		ORDER BY `DateTime` DESC
-		"""
-		scheme_nav_prices_list = pd.read_sql_query(scheme_nav_sql, con=conn, params=(str(back_date),))
+		scheme_nav_sql = 'SELECT distinct on("SecurityCode") * FROM public."SchemeNAVCurrentPrices" \
+							WHERE "DateTime" >= \''+str(back_date)+'\' \
+							ORDER BY "SecurityCode", "DateTime" DESC ;'
+		scheme_nav_prices_list = sqlio.read_sql_query(scheme_nav_sql, con = conn)
 
+		scheme_nav_merge_list['SecurityCode'] = scheme_nav_merge_list['SecurityCode'].apply(
+    lambda x: Decimal(str(x)).quantize(Decimal('1.000000'), rounding=ROUND_DOWN)
+)
+		# convert to numpy float64
+		scheme_nav_merge_list['SecurityCode'] = scheme_nav_merge_list['SecurityCode'].astype(np.float64)
+		# pd.set_option('display.float_format', lambda x: f'{x:.12f}')
+
+	
+		# print(scheme_nav_merge_list['SecurityCode'])
+  
 		# self.export_table("31_SchemeNAVCurrentPrices", scheme_nav_prices_list)
 		scheme_nav_prices_list = pd.merge(scheme_nav_merge_list, scheme_nav_prices_list, left_on = 'SecurityCode', right_on = 'SecurityCode', 
 										how = 'left')
-
+		
 		# self.export_table("32_merge_22_31", scheme_nav_prices_list)
 		scheme_nav_prices_list = scheme_nav_prices_list.rename(columns = {'SchemeCode_x' : 'SchemeCode', 'SchemeName_x' : 'SchemeName', \
 																	'SchemeCategoryDescription_x' : 'SchemeCategoryDescription', 'AUM_x' : 'AUM' })
 
 
-		scheme_nav_prices_list['PercentageChange'] = scheme_nav_prices_list['PercentageChange'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev1WeekPer'] = scheme_nav_prices_list['Prev1WeekPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev1MonthPer'] = scheme_nav_prices_list['Prev1MonthPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev3MonthsPer'] = scheme_nav_prices_list['Prev3MonthsPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev6MonthsPer'] = scheme_nav_prices_list['Prev6MonthsPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev9MonthsPer'] = scheme_nav_prices_list['Prev9MonthsPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['PrevYearPer'] = scheme_nav_prices_list['PrevYearPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev2YearCompPer'] = scheme_nav_prices_list['Prev2YearCompPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev3YearCompPer'] = scheme_nav_prices_list['Prev3YearCompPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_prices_list['Prev5YearCompPer'] = scheme_nav_prices_list['Prev5YearCompPer'].replace(r'[\$,]', '', regex=True).astype(float)
+		scheme_nav_prices_list['PercentageChange'] = scheme_nav_prices_list['PercentageChange'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['Prev1WeekPer'] = scheme_nav_prices_list['Prev1WeekPer'].replace(r'[?$, ]','', regex=True).astype(float)
+		scheme_nav_prices_list['Prev1MonthPer'] = scheme_nav_prices_list['Prev1MonthPer'].replace(r'[?$, ]','', regex=True).astype(float)
+		scheme_nav_prices_list['Prev3MonthsPer'] = scheme_nav_prices_list['Prev3MonthsPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['Prev6MonthsPer'] = scheme_nav_prices_list['Prev6MonthsPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['Prev9MonthsPer'] = scheme_nav_prices_list['Prev9MonthsPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['PrevYearPer'] = scheme_nav_prices_list['PrevYearPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['Prev2YearCompPer'] = scheme_nav_prices_list['Prev2YearCompPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['Prev3YearCompPer'] = scheme_nav_prices_list['Prev3YearCompPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_prices_list['Prev5YearCompPer'] = scheme_nav_prices_list['Prev5YearCompPer'].replace(r'[?$, ]', '', regex=True).astype(float)
 
 
 		scheme_nav_prices_list['SchemeCategoryDescription'] = scheme_nav_prices_list['SchemeCategoryDescription'].str.replace(" ", '') 
@@ -541,51 +541,35 @@ class FRS:
 
 		for index, row in scheme_nav_list.iterrows():
 
-			one_year_growth_list = scheme_nav_list.loc[(scheme_nav_list["SecurityCode"] == row['SecurityCode'])]["PrevYearPer"]
-			# print("one_year_growth_list: ", one_year_growth_list)
-			# one_year_growth = one_year_growth_list.item() if len(one_year_growth_list.index) != 0 else np.nan
-			if len(one_year_growth_list.index) == 1:
+			one_year_growth_list = scheme_nav_list.loc[scheme_nav_list["SecurityCode"] == row['SecurityCode']]["PrevYearPer"]
+
+			one_year_growth = np.nan
+			if len(one_year_growth_list) == 1:
 				one_year_growth = one_year_growth_list.item()
-			elif len(one_year_growth_list.index) > 1:
-				last_value = ""
-				for idd, value in one_year_growth_list.iteritems():
-					if last_value == "":
-						last_value = value
-					elif last_value == value:
-						pass
-					elif last_value != value:
-						raise Exception("one_year_growth_list too many values")
-				one_year_growth = last_value
-			else:
-				one_year_growth = np.nan
-
-			three_year_growth_list = scheme_nav_list.loc[(scheme_nav_list["SecurityCode"] == row['SecurityCode'])]['Prev3YearCompPer']
-			# print("three_year_growth_list: ", three_year_growth_list)
-			if len(three_year_growth_list.index) == 1:
-				three_year_growth = three_year_growth_list.item()
-			elif len(three_year_growth_list.index) > 1:
-				last_value = ""
-				for idd, value in three_year_growth_list.iteritems():
-					if last_value == "":
-						last_value = value
-					elif last_value == value:
-						pass
-					elif last_value != value:
-						raise Exception("three_year_growth_list too many values")
-				three_year_growth = last_value
-			else:
-				three_year_growth = np.nan
-			# three_year_growth = three_year_growth_list.item() if len(three_year_growth_list.index) != 0 else np.nan
-
-
-			scheme_nav_list.loc[index, 'Scheme Rank Value'] = (0.6)*one_year_growth + (0.4)*three_year_growth if one_year_growth != np.nan and three_year_growth != np.nan else np.nan 
+			elif len(one_year_growth_list) > 1:
+				unique_values = one_year_growth_list.unique()
+				if len(unique_values) == 1:
+					one_year_growth = unique_values[0]
+				else:
+					raise Exception("one_year_growth_list has multiple unique values")
+				
 			
-
-		scheme_nav_list['Scheme Rank'] = scheme_nav_list.groupby("btt_scheme_category")["Scheme Rank Value"].rank(ascending=True, pct=True) * 100 
-		# scheme_nav_list['Scheme Rank'] = ((len(scheme_nav_list.index)-scheme_nav_list['Scheme Rank']+1)/len(scheme_nav_list.index))*100
-
-
-		return scheme_nav_list 
+			three_year_growth_list = scheme_nav_list.loc[scheme_nav_list["SecurityCode"] == row['SecurityCode']]['Prev3YearCompPer']
+			
+			three_year_growth = np.nan
+			if len(three_year_growth_list) == 1:
+				three_year_growth = three_year_growth_list.item()
+			elif len(three_year_growth_list) > 1:
+				unique_values = three_year_growth_list.unique()
+				if len(unique_values) == 1:
+					three_year_growth = unique_values[0]
+				else:
+					raise Exception("three_year_growth_list has multiple unique values")
+			scheme_nav_list.loc[index, 'Scheme Rank Value'] = (0.6 * one_year_growth + 0.4 * three_year_growth) if not np.isnan(one_year_growth) and not np.isnan(three_year_growth) else np.nan
+		
+		scheme_nav_list['Scheme Rank'] = scheme_nav_list.groupby("btt_scheme_category")["Scheme Rank Value"].rank(ascending=True, pct=True) * 100
+		return scheme_nav_list
+ 
 
 	def insert_scheme_nav_rank(self, scheme_nav_list, conn, cur, date):
 		""" Insert the NAV Rank data into database
@@ -599,18 +583,18 @@ class FRS:
 		 """
 
 
-		scheme_nav_list['PrevNAVAmount'] = scheme_nav_list['PrevNAVAmount'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['PercentageChange'] = scheme_nav_list['PercentageChange'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev1WeekPer'] = scheme_nav_list['Prev1WeekPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev1MonthPer'] = scheme_nav_list['Prev1MonthPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev3MonthsPer'] = scheme_nav_list['Prev3MonthsPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev6MonthsPer'] = scheme_nav_list['Prev6MonthsPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev9MonthsPer'] = scheme_nav_list['Prev9MonthsPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['PrevYearPer'] = scheme_nav_list['PrevYearPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev2YearCompPer'] = scheme_nav_list['Prev2YearCompPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev3YearCompPer'] = scheme_nav_list['Prev3YearCompPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['Prev5YearCompPer'] = scheme_nav_list['Prev5YearCompPer'].replace(r'[\$,]', '', regex=True).astype(float)
-		scheme_nav_list['AUM'] = scheme_nav_list['AUM'].replace(r'[\$,]', '', regex=True).astype(float)
+		scheme_nav_list['PrevNAVAmount'] = scheme_nav_list['PrevNAVAmount'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['PercentageChange'] = scheme_nav_list['PercentageChange'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev1WeekPer'] = scheme_nav_list['Prev1WeekPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev1MonthPer'] = scheme_nav_list['Prev1MonthPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev3MonthsPer'] = scheme_nav_list['Prev3MonthsPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev6MonthsPer'] = scheme_nav_list['Prev6MonthsPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev9MonthsPer'] = scheme_nav_list['Prev9MonthsPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['PrevYearPer'] = scheme_nav_list['PrevYearPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev2YearCompPer'] = scheme_nav_list['Prev2YearCompPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev3YearCompPer'] = scheme_nav_list['Prev3YearCompPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['Prev5YearCompPer'] = scheme_nav_list['Prev5YearCompPer'].replace(r'[?$, ]', '', regex=True).astype(float)
+		scheme_nav_list['AUM'] = scheme_nav_list['AUM'].replace(r'[?$, ]', '', regex=True).astype(float)
 
 
 		scheme_nav_list['Date'] = date.strftime("%Y-%m-%d")
@@ -626,27 +610,26 @@ class FRS:
 										'9 Month Rank', '1 Year', '1 Year Rank', '2 Year', '2 Year Rank', '3 Year', '3 Year Rank', '5 Year', '5 Year Rank', \
 										'AUM', 'Scheme Rank', 'btt_scheme_category', 'btt_scheme_code']]
 
-
+		# drop duplicate rows
+		scheme_nav_list = scheme_nav_list.drop_duplicates(subset=['SchemeCode'], keep='first')
 								
 		print("Inserting Scheme NAV List: ")
 
 		
 		exportfilename = "scheme_nav_rank_export.csv"
 		exportfile = open(exportfilename,"w")
-		scheme_nav_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", line_terminator='\r')
+		scheme_nav_list.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
 		exportfile.close()
 			
 		
-		load_data_sql = """
-		LOAD DATA INFILE %s INTO TABLE `Reports`.`FRS-NAVRank`
-		FIELDS TERMINATED BY ',' 
-		ENCLOSED BY '"'
-		LINES TERMINATED BY '\n'
-		IGNORE 1 ROWS;
-		"""
+		copy_sql = """
+				COPY "Reports"."FRS-NAVRank" FROM stdin WITH CSV HEADER
+				DELIMITER as ','
+				"""
 		with open(exportfilename, 'r') as f:
-			cur.execute(load_data_sql, (f.name,))
+			cur.copy_expert(sql=copy_sql, file=f)
 			conn.commit()
+			f.close()
 		os.remove(exportfilename)
 		
 
@@ -704,7 +687,8 @@ class FRS:
 		"""
 
 		scheme_nav_category_avg['Date'] = date.strftime("%Y-%m-%d")
-
+		# drop duplicate rows
+		scheme_nav_category_avg = scheme_nav_category_avg.drop_duplicates(subset=['btt_scheme_category'], keep='first')
 
 		scheme_nav_category_avg = scheme_nav_category_avg[['btt_scheme_category', 'Date', '1 Day Avg', '1 Week Avg', '1 Month Avg', '3 Month Avg', \
 														'6 Month Avg', '9 Month Avg', '1 Year Avg', '2 Year Avg', '3 Year Avg', '5 Year Avg']]
@@ -717,20 +701,18 @@ class FRS:
 		
 		exportfilename = "scheme_nav_category_avg_export.csv"
 		exportfile = open(exportfilename,"w")
-		scheme_nav_category_avg.to_csv(exportfile, header=True, index=False, float_format="%.2f", line_terminator='\r')
+		scheme_nav_category_avg.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
 		exportfile.close()
 			
 		
-		load_data_sql = """
-		LOAD DATA INFILE %s INTO TABLE `Reports`.`FRS-NAVCategoryAvg`
-		FIELDS TERMINATED BY ',' 
-		ENCLOSED BY '"'
-		LINES TERMINATED BY '\n'
-		IGNORE 1 ROWS;
-		"""
+		copy_sql = """
+				COPY "Reports"."FRS-NAVCategoryAvg" FROM stdin WITH CSV HEADER
+				DELIMITER as ','
+				"""
 		with open(exportfilename, 'r') as f:
-			cur.execute(load_data_sql, (f.name,))
+			cur.copy_expert(sql=copy_sql, file=f)
 			conn.commit()
+			f.close()
 		os.remove(exportfilename)
 		
 	def compile_mf_list(self, conn,cur,date):
@@ -828,26 +810,15 @@ class FRS:
 
 		print("\nGenerating MF List for today:", curr_date)
 		self.compile_mf_list(conn,cur,curr_date)
-		print("Compiled MF merge list")
+		print("Compiled MF merge list") 	
 
-	def generate_current_mfrank(self, curr_date, conn,cur):
-		""" Generate current mfrank,
 
-		Operation:
-			fetch the data of MFList and MF Rank for current date,
-			and generate MF Rank for current date.
-		"""
-
-		self.generate_current_mflist(conn,cur, curr_date)
-		self.calc_mf_rank(conn,cur,curr_date)
-
-		print("Completed MF Rank generation")
 
 	def export_table(self, name,table):
 		exportfilename = "FRS_"+name+"_export.csv"
 		exportfile = open(exportfilename,"w")
 
-		table.to_csv(exportfile, header=True, index=False, float_format="%2f", line_terminator='\r')
+		table.to_csv(exportfile, header=True, index=False, float_format="%2f", lineterminator='\r')
 		exportfile.close()
 
 	def calc_nav_rank(self, conn,cur,date):
@@ -862,27 +833,27 @@ class FRS:
 		today = date
 
 		print("Filtering schemes from scheme master")
-		scheme_nav_list = self.scheme_master_nav_list(conn, today)
+		scheme_master_nav = self.scheme_master_nav_list(conn, today)
 		# # self.export_table("1_scheme_master_nav_list", scheme_nav_list)
 
 		print("Merging with SchemeNavMaster")
-		scheme_nav_list = self.merge_scheme_nav_master(scheme_nav_list, conn)
+		merge_scheme_nav = self.merge_scheme_nav_master(scheme_master_nav, conn)
 		# # self.export_table("21_merge_scheme_nav_master", scheme_nav_list)
 
 		print("Getting BTT MF Categories")
-		scheme_nav_list = self.get_mf_category_mapping(scheme_nav_list, conn)
+		mf_category_mapping = self.get_mf_category_mapping(merge_scheme_nav, conn)
 		# # self.export_table("22_get_mf_category_mapping", scheme_nav_list)
 
 		print("Getting Scheme NAV current prices data")
-		scheme_nav_list = self.get_scheme_nav_current_prices(scheme_nav_list, conn, today)
+		scheme_nav_current_prices = self.get_scheme_nav_current_prices(mf_category_mapping, conn, today)
 		# # self.export_table("3_get_scheme_nav_current_prices", scheme_nav_list)
 
 		print("Calculating Scheme Rank")
-		scheme_nav_list = self.calc_scheme_rank(scheme_nav_list, conn, today)
+		scheme_rank = self.calc_scheme_rank(scheme_nav_current_prices, conn, today)
 		# # self.export_table("4_calc_scheme_rank", scheme_nav_list)
 
 		print("Inserting Scheme NAV Rank in table")
-		scheme_nav_list = self.insert_scheme_nav_rank(scheme_nav_list, conn, cur, today)
+		scheme_nav_list = self.insert_scheme_nav_rank(scheme_rank, conn, cur, today)
 		# # self.export_table("5_insert_scheme_nav_rank", scheme_nav_list)
 
 		print("Calculating average of each group")
@@ -892,6 +863,10 @@ class FRS:
 		# raise Exception('CUT')
 		print("Inserting NAV Category Average in table")
 		self.insert_scheme_nav_category_avg(scheme_nav_category_avg, conn, cur, today)
+  
+		return scheme_master_nav, merge_scheme_nav, mf_category_mapping, scheme_nav_current_prices, scheme_rank, scheme_nav_category_avg
+
+
 
 	def generate_history_nav_rank(self, conn, cur):
 		"""Fetch the data of NAV Rank and category average,
@@ -918,3 +893,15 @@ class FRS:
 		self.calc_nav_rank(conn,cur,curr_date)
 		print("Completed NAV Rank and category average")
 
+	def generate_current_mfrank(self, curr_date, conn,cur):
+		""" Generate current mfrank,
+
+		Operation:
+			fetch the data of MFList and MF Rank for current date,
+			and generate MF Rank for current date.
+		"""
+
+		self.generate_current_mflist(conn,cur, curr_date)
+		self.calc_mf_rank(conn,cur,curr_date)
+
+		print("Completed MF Rank generation")

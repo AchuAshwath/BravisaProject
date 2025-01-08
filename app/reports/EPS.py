@@ -142,7 +142,7 @@ class EPS:
 
         quarterly_list = pd.read_sql_query(sql, con = conn)
         
-        print("CompanyCode NULL List: ", len(quarterly_list))
+        print("quarterly_list: ", len(quarterly_list))
         # Renaming the column name
         quarterly_list = quarterly_list.rename(columns={'InterestCharges': 'Interest', 'PL_Before_Tax': 'OPM', 'TaxCharges': 'Tax',\
         'PL_After_TaxFromOrdineryActivities': 'PATRAW' , 'EquityCapital': 'Equity', 'ReservesAndSurplus': 'Reserves' })

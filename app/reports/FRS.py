@@ -17,7 +17,7 @@ import time
 import math
 from datetime import timedelta
 import utils.date_set as date_set
-
+from decimal import Decimal, ROUND_DOWN
 
 class FRS:
 	""" Generating FRS Rank and NAV rank for current date
@@ -447,7 +447,14 @@ class FRS:
 							ORDER BY "SecurityCode", "DateTime" DESC ;'
 		scheme_nav_prices_list = sqlio.read_sql_query(scheme_nav_sql, con = conn)
 
-		scheme_nav_merge_list['SecurityCode'] = scheme_nav_merge_list['SecurityCode'] + 0.002066		
+
+		scheme_nav_merge_list['SecurityCode'] = scheme_nav_merge_list['SecurityCode'].apply(
+    lambda x: Decimal(str(x)).quantize(Decimal('1.000000'), rounding=ROUND_DOWN)
+)
+		# convert to numpy float64
+		scheme_nav_merge_list['SecurityCode'] = scheme_nav_merge_list['SecurityCode'].astype(np.float64)
+	
+		# print(scheme_nav_merge_list['SecurityCode'])
   
 		# self.export_table("31_SchemeNAVCurrentPrices", scheme_nav_prices_list)
 		scheme_nav_prices_list = pd.merge(scheme_nav_merge_list, scheme_nav_prices_list, left_on = 'SecurityCode', right_on = 'SecurityCode', 
@@ -601,7 +608,8 @@ class FRS:
 										'9 Month Rank', '1 Year', '1 Year Rank', '2 Year', '2 Year Rank', '3 Year', '3 Year Rank', '5 Year', '5 Year Rank', \
 										'AUM', 'Scheme Rank', 'btt_scheme_category', 'btt_scheme_code']]
 
-
+		# drop duplicate rows
+		scheme_nav_list = scheme_nav_list.drop_duplicates(subset=['SchemeCode'], keep='first')
 								
 		print("Inserting Scheme NAV List: ")
 
@@ -677,7 +685,9 @@ class FRS:
 		"""
 
 		scheme_nav_category_avg['Date'] = date.strftime("%Y-%m-%d")
-
+		
+		# drop duplicate rows
+		scheme_nav_category_avg = scheme_nav_category_avg.drop_duplicates(subset=['btt_scheme_category'], keep='first')
 
 		scheme_nav_category_avg = scheme_nav_category_avg[['btt_scheme_category', 'Date', '1 Day Avg', '1 Week Avg', '1 Month Avg', '3 Month Avg', \
 														'6 Month Avg', '9 Month Avg', '1 Year Avg', '2 Year Avg', '3 Year Avg', '5 Year Avg']]
