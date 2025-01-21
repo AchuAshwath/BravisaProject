@@ -313,14 +313,18 @@ def process():
             "SMR": ('"Reports"."SMR"', '"SMRDate"'),
             "IRS": ('"Reports"."IRS"', '"GenDate"'),
             "FRS-NAVCategoryAvg": ('"Reports"."FRS-NAVCategoryAvg"', '"Date"'),
-            "CombinedRS": ('"Reports"."CombinedRS"', '"GenDate"')
+            "CombinedRS": ('"Reports"."CombinedRS"', '"GenDate"'),
+            "FRS-MFRank": ('"Reports"."FRS-MFRank"', '"Date"'),
+            "FRS-NAVRank": ('"Reports"."FRS-NAVRank"', '"Date"')    
         }
 
         if submenu == "All Reports":
             selected_reports = report_mapping.keys()
-            print(selected_reports)
+            # print(selected_reports)
         else:
+            print('Selected report is ', submenu)
             selected_reports = [submenu]
+            
 
         for report in selected_reports:
             table, date_column = report_mapping[report]
@@ -418,7 +422,9 @@ def download_csv(csv, report, filename):
     dyn_list =  {'CompanyCode', 'NSECode', 'BSECode', 'CompanyName', 'ISIN'}
     columns_to_convert = {'EPS':['Q1 Sales', 'Q2 Sales'], 'ERS':['Q1 Sales', 'Q2 Sales'],'STANDALONE_ERS':['Q1 Sales', 'Q2 Sales'], 'STANDALONE_EPS':['Q1 Sales', 'Q2 Sales'], 'Consolidated_EPS':['Q1 Sales', 'Q2 Sales'],'Consolidated_ERS':['Q1 Sales', 'Q2 Sales'], 'EERS':['Q1 Sales', 'Q2 Sales'],'STANDALONE_EERS':['Q1 Sales', 'Q2 Sales'],'Consolidated_EERS':['Q1 Sales', 'Q2 Sales'], 'PRS':['Value', 'Value Average', 'Market Cap Value'], 'IRS':['OS', 'Volume'], "SMR": ('"Reports"."SMR"', '"SMRDate"'),
             "FRS-NAVCategoryAvg": [],
-            "CombinedRS": []}
+            "FRS-MFRank": [],
+            "CombinedRS": [],
+            "FRS-NAVRank": []}
     # loop through columns
     for col in csv.columns:
         # if the column is object type

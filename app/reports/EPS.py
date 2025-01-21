@@ -595,30 +595,50 @@ class EPS:
 
 
         for index, row in quarterly_eps_list.iterrows():
-
             prev_qtr = self.get_previous_quarter(row['YearEnding'])
             prev_year_qtr = self.get_year_before_quarter(prev_qtr)
 
-            #################
             # calculating Q2 EPS Growth
-            eps_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['EPS']
-            eps_prev = eps_prev_list.item() if len(eps_prev_list.index) == 1 else np.nan
-            eps_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]['EPS']
-            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else np.nan
-                        
-            quarterly_eps_list.loc[index, 'Q2 EPS Growth'] = ((eps_current-eps_prev)/abs(eps_prev))*100 if eps_prev  !=0 else np.nan
-            quarterly_eps_list.loc[index , 'Q2 EPS'] = eps_current
+            eps_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"] == row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]["EPS"]
+            if len(eps_prev_list.index) > 1:
+                eps_prev = eps_prev_list[eps_prev_list.index[0]]
+            else:
+                eps_prev = eps_prev_list.item() if len(eps_prev_list.index) != 0 else None
 
+            if eps_prev is None:
+                print(f"Problem with EPS Previous: CompanyCode: {row['CompanyCode']}, YearEnding: {prev_year_qtr}")
+                continue
 
-            #################
-            #  calculating Q2 sales Growth
-            sales_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]['Sales']
-            sales_prev = sales_prev_list.item() if len(sales_prev_list.index) == 1 else np.nan
-            sales_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"]==row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]['Sales']
-            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else np.nan
+            eps_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"] == row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]["EPS"]
+            eps_current = eps_current_list.item() if len(eps_current_list.index) == 1 else None
 
-            quarterly_eps_list.loc[index, 'Q2 Sales Growth'] = ((sales_current-sales_prev)/abs(sales_prev))*100 if sales_prev !=0 else np.nan
-            quarterly_eps_list.loc[index , 'Q2 Sales'] = sales_current
+            if eps_current is None:
+                print(f"Problem with EPS Current: CompanyCode: {row['CompanyCode']}, YearEnding: {prev_qtr}")
+                continue
+
+            quarterly_eps_list.loc[index, 'Q2 EPS Growth'] = ((eps_current - eps_prev) / abs(eps_prev)) * 100 if eps_prev != 0 else None
+            quarterly_eps_list.loc[index, 'Q2 EPS'] = eps_current
+
+            # calculating Q2 sales Growth
+            sales_prev_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"] == row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_year_qtr)]["Sales"]
+            if len(sales_prev_list.index) > 1:
+                sales_prev = sales_prev_list[sales_prev_list.index[0]]
+            else:
+                sales_prev = sales_prev_list.item() if len(sales_prev_list.index) != 0 else None
+
+            if sales_prev is None:
+                print(f"Problem with Sales Previous: CompanyCode: {row['CompanyCode']}, YearEnding: {prev_year_qtr}")
+                continue
+
+            sales_current_list = quarterly_eps_year_back.loc[(quarterly_eps_year_back["CompanyCode"] == row['CompanyCode']) & (quarterly_eps_year_back["YearEnding"] == prev_qtr)]["Sales"]
+            sales_current = sales_current_list.item() if len(sales_current_list.index) == 1 else None
+
+            if sales_current is None:
+                print(f"Problem with Sales Current: CompanyCode: {row['CompanyCode']}, YearEnding: {prev_qtr}")
+                continue
+
+            quarterly_eps_list.loc[index, 'Q2 Sales Growth'] = ((sales_current - sales_prev) / abs(sales_prev)) * 100 if sales_prev != 0 else None
+            quarterly_eps_list.loc[index, 'Q2 Sales'] = sales_current
 
             #################  
 
