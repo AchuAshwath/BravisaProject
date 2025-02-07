@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <title>DISPLAY DASHBOARD</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+        }
+        
+        .navbar {
+            background-color: #1b9cfc;
+        }
+        .navbar a {
+            color: white !important;
+        }
+        .container {
+            max-width: 90%;
+            margin: auto;
+        }
+        th {
+            background-color: #1b9cfc;  /* Your desired color */
+            color: white; /* Text color */
+            font-weight: bold;
+            padding: 12px;
+            text-transform: uppercase;
+        }
+        
+        .info-box {
+            background: white;
+            border-radius: 8px;
+            text-align: center;
+            padding: 10px;
+            box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+            min-width: 180px;
+        }
+        .table-responsive {
+            overflow-x: auto;
+        }
+        /* th {
+            background: #007bff;
+            color: white;
+        } */
+        h2 {
+            text-align: center;
+            margin-top: 20px;
+        }
+        form input, form button {
+            padding: 10px;
+            font-size: 16px;
+        }
+        .button {
+            background-color: #1b9cfc;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .button:hover {
+            background-color: #00bcff;
+        }
+        td:empty {
+             visibility: hidden;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- Navbar with Back Button -->
+    <nav class="navbar navbar-expand-lg mb-3">
+        <div class="container-fluid">
+            <a class="navbar-brand text-white" href="/dash">← Back to Dashboards</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1 class="text-center" style="color: #1b9cfc;">DISPLAY DASHBOARD</h1>
+
+        <!-- Input Form -->
+        <form id="search-form" class="row g-3 justify-content-center">
+            <div class="col-md-4">
+                <input type="text" id="input-text" name="NSECode" class="form-control" placeholder="Enter NSE Code" value="ARVIND">
+            </div>
+            <div class="col-md-3">
+                <input type="date" id="input-date" name="date" class="form-control" value="2024-09-12">
+            </div>
+            <div class="col-md-2">
+                <button class="button" type="submit" class="btn btn-primary w-100">Search</button>
+            </div>
+        </form>
+
+        <!-- Industry & Industry Rank -->
+        <div class="row mt-3 text-center">
+            <div class="col-md-6">
+                <div class="info-box"><strong>Industry:</strong> <span id="industry">N/A</span></div>
+            </div>
+            <div class="col-md-6">
+                <div class="info-box"><strong>Rank:</strong> <span id="industry-rank">N/A</span></div>
+            </div>
+        </div>
+
+        <!-- Ranks -->
+        <div class="row mt-3 text-center">
+             
+            <div class="col-md-4">
+                <div class="info-box"><strong>PRS :</strong> <span id="prs-rank">N/A</span></div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-box"><strong>ERS :</strong> <span id="ers-rank">N/A</span></div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-box"><strong>EERS :</strong> <span id="eers-rank">N/A</span></div>
+            </div>
+
+        </div>
+
+        <!-- Change %, RS 30 Days, RS 90 Days -->
+        <div class="row mt-3 text-center">
+            <div class="col-md-4">
+                <div class="info-box"><strong>Change %:</strong> <span id="change-percent">N/A</span></div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-box"><strong>RS 30 Days:</strong> <span id="rs-30d">N/A</span></div>
+            </div>
+            <div class="col-md-4">
+                <div class="info-box"><strong>RS 90 Days:</strong> <span id="rs-90d">N/A</span></div>
+            </div>
+        </div>
+
+        <!-- Consolidated Table -->
+        <h2>Consolidated EPS Data</h2>
+        <div class="table-responsive">
+            <table id="consolidated-table" class="table table-bordered">
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Standalone Table -->
+        <h2>Standalone EPS Data</h2>
+        <div class="table-responsive">
+            <table id="standalone-table" class="table table-bordered">
+                <thead><tr></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function () {
+            $("#search-form").submit(function (event) {
+                event.preventDefault();  // Prevent form from reloading the page
+                
+                let nseCode = $("#input-text").val();
+                let date = $("#input-date").val();
+
+                $.ajax({
+                    url: "/get_display",
+                    type: "GET",
+                    data: { NSECode: nseCode, date: date },
+                    success: function (data) {
+                        // Populate Industry & Industry Rank
+                        $("#industry").text(data.Industry || "N/A");
+                        $("#industry-rank").text(data["Industry Rank"] || "N/A");
+
+                        // Populate Rank Data
+                        $("#prs-rank").text(data["PRS Rank"] || "N/A");
+                        $("#ers-rank").text(data["ERS Rank"] || "N/A");
+                        $("#eers-rank").text(data["EERS Rank"] || "N/A");
+
+                        // Populate Other Stats
+                        $("#change-percent").text(data["Change %"] || "N/A");
+                        $("#rs-30d").text(data["RS 30 Days"] || "N/A");
+                        $("#rs-90d").text(data["RS 90 Days"] || "N/A");
+
+                        // Populate Consolidated Table
+                        populateTable("#consolidated-table", data.Consolidated);
+
+                        // Populate Standalone Table
+                        populateTable("#standalone-table", data.Standalone);
+                    },
+                    error: function () {
+                        alert("Error fetching data. Please try again.");
+                    }
+                });
+            });
+
+            // Function to populate a table dynamically while keeping original DataFrame order
+            function populateTable(tableId, data) {
+                let table = $(tableId);
+                let thead = table.find("thead tr");
+                let tbody = table.find("tbody");
+
+                thead.empty();
+                tbody.empty();
+
+                if (data.length === 0) {
+                    tbody.append("<tr><td colspan='6'>No data available</td></tr>");
+                    return;
+                }
+
+                // Maintain DataFrame Order (Extract column order from first row)
+                let columns = Object.keys(data[0]);
+
+                // Populate Table Header in Original DataFrame Order
+                columns.forEach(col => {
+                    thead.append(`<th>${col}</th>`);
+                });
+
+                // Populate Rows
+                data.forEach(row => {
+                    let rowHtml = "<tr>";
+                    columns.forEach(col => {
+                        rowHtml += `<td>${row[col]}</td>`;
+                    });
+                    rowHtml += "</tr>";
+                    tbody.append(rowHtml);
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>

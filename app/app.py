@@ -24,6 +24,14 @@ import zipfile
 from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER
 from utils.logs import insert_logs
 from flask import Flask, render_template, request, jsonify
+
+# import blue prints
+from routes.dash_reports import dash_reports
+from routes.dash_display import dash_display
+from routes.dash_summary import dash_summary
+from flask_bootstrap import Bootstrap5
+
+
 # Assuming necessary imports and configurations are done here
 def check_files_presence(date, is_holiday):
     
@@ -75,6 +83,15 @@ def check_files_presence(date, is_holiday):
             return False
 
 app = Flask(__name__)
+
+bootstrap = Bootstrap5(app)
+app.register_blueprint(dash_reports)
+app.register_blueprint(dash_display)
+app.register_blueprint(dash_summary)
+
+@app.route('/dash')
+def dashboard():
+    return render_template('dash.html')
 
 @app.route('/fileupload')
 def fileupload():
@@ -672,7 +689,7 @@ if __name__ == "__main__":
     t.daemon = True
     t.start()
 
-    webview.create_window("Bravisa Temple Tree", "http://127.0.0.1:5000", min_size=(800,800))
+    webview.create_window("Bravisa Temple Tree", "http://127.0.0.1:5000", min_size=(950,800))
     webview.start()
 
 
