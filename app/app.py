@@ -29,7 +29,7 @@ from flask import Flask, render_template, request, jsonify
 from routes.dash_reports import dash_reports
 from routes.dash_display import dash_display
 from routes.dash_summary import dash_summary
-from flask_bootstrap import Bootstrap5
+# from flask_bootstrap import Bootstrap5
 
 
 # Assuming necessary imports and configurations are done here
@@ -84,7 +84,7 @@ def check_files_presence(date, is_holiday):
 
 app = Flask(__name__)
 
-bootstrap = Bootstrap5(app)
+# bootstrap = Bootstrap5(app)
 app.register_blueprint(dash_reports)
 app.register_blueprint(dash_display)
 app.register_blueprint(dash_summary)

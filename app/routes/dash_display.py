@@ -168,7 +168,7 @@ def search():
     standalone_df.loc[standalone_df['Quater'] == 'Q1', 'EERS Growth'] = standalone_eers_df['Q1 EERS Growth'].values[0]
     standalone_df.loc[standalone_df['Quater'] == 'Q2', 'EERS Growth'] = standalone_eers_df['Q2 EERS Growth'].values[0]
 
-
+    print(standalone_df.columns)
     # return with names and their values as f string
     return jsonify({
         'Industry': industry,

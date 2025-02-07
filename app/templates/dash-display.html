@@ -10,7 +10,7 @@
     
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Lato', sans-serif;
             background-color: #f8f9fa;
         }
         
@@ -85,10 +85,10 @@
         <!-- Input Form -->
         <form id="search-form" class="row g-3 justify-content-center">
             <div class="col-md-4">
-                <input type="text" id="input-text" name="NSECode" class="form-control" placeholder="Enter NSE Code" value="ARVIND">
+                <input type="text" id="input-text" name="NSECode" class="form-control" placeholder="Enter NSE Code" >
             </div>
             <div class="col-md-3">
-                <input type="date" id="input-date" name="date" class="form-control" value="2024-09-12">
+                <input type="date" id="input-date" name="date" class="form-control" >
             </div>
             <div class="col-md-2">
                 <button class="button" type="submit" class="btn btn-primary w-100">Search</button>
@@ -109,13 +109,13 @@
         <div class="row mt-3 text-center">
              
             <div class="col-md-4">
-                <div class="info-box"><strong>PRS :</strong> <span id="prs-rank">N/A</span></div>
+                <div class="info-box"><strong>PRS :</strong> <span id="prs-rank"></span></div>
             </div>
             <div class="col-md-4">
-                <div class="info-box"><strong>ERS :</strong> <span id="ers-rank">N/A</span></div>
+                <div class="info-box"><strong>ERS :</strong> <span id="ers-rank"></span></div>
             </div>
             <div class="col-md-4">
-                <div class="info-box"><strong>EERS :</strong> <span id="eers-rank">N/A</span></div>
+                <div class="info-box"><strong>EERS :</strong> <span id="eers-rank"></span></div>
             </div>
 
         </div>
@@ -123,13 +123,13 @@
         <!-- Change %, RS 30 Days, RS 90 Days -->
         <div class="row mt-3 text-center">
             <div class="col-md-4">
-                <div class="info-box"><strong>Change %:</strong> <span id="change-percent">N/A</span></div>
+                <div class="info-box"><strong>Change %:</strong> <span id="change-percent"></span></div>
             </div>
             <div class="col-md-4">
-                <div class="info-box"><strong>RS 30 Days:</strong> <span id="rs-30d">N/A</span></div>
+                <div class="info-box"><strong>RS 30 Days:</strong> <span id="rs-30d"></span></div>
             </div>
             <div class="col-md-4">
-                <div class="info-box"><strong>RS 90 Days:</strong> <span id="rs-90d">N/A</span></div>
+                <div class="info-box"><strong>RS 90 Days:</strong> <span id="rs-90d"></span></div>
             </div>
         </div>
 
@@ -159,7 +159,7 @@
                 
                 let nseCode = $("#input-text").val();
                 let date = $("#input-date").val();
-
+    
                 $.ajax({
                     url: "/get_display",
                     type: "GET",
@@ -168,52 +168,51 @@
                         // Populate Industry & Industry Rank
                         $("#industry").text(data.Industry || "N/A");
                         $("#industry-rank").text(data["Industry Rank"] || "N/A");
-
+    
                         // Populate Rank Data
                         $("#prs-rank").text(data["PRS Rank"] || "N/A");
                         $("#ers-rank").text(data["ERS Rank"] || "N/A");
                         $("#eers-rank").text(data["EERS Rank"] || "N/A");
-
+    
                         // Populate Other Stats
                         $("#change-percent").text(data["Change %"] || "N/A");
                         $("#rs-30d").text(data["RS 30 Days"] || "N/A");
                         $("#rs-90d").text(data["RS 90 Days"] || "N/A");
-
-                        // Populate Consolidated Table
-                        populateTable("#consolidated-table", data.Consolidated);
-
-                        // Populate Standalone Table
-                        populateTable("#standalone-table", data.Standalone);
+    
+                        // Define Column Order
+                        let consolidatedColumns = ["Quater", "Cons EPS", "Growth", "Sale", "Sale Growth", "EERS", "EERS Growth"]; // Replace with your desired order
+                        let standaloneColumns = ["Quater", "Cons EPS", "Growth", "Sale", "Sale Growth", "EERS", "EERS Growth"];// Replace with your desired order
+    
+                        // Populate Tables with Defined Column Order
+                        populateTable("#consolidated-table", data.Consolidated, consolidatedColumns);
+                        populateTable("#standalone-table", data.Standalone, standaloneColumns);
                     },
                     error: function () {
                         alert("Error fetching data. Please try again.");
                     }
                 });
             });
-
-            // Function to populate a table dynamically while keeping original DataFrame order
-            function populateTable(tableId, data) {
+    
+            // Function to populate a table dynamically with defined column order
+            function populateTable(tableId, data, columns) {
                 let table = $(tableId);
                 let thead = table.find("thead tr");
                 let tbody = table.find("tbody");
-
+    
                 thead.empty();
                 tbody.empty();
-
+    
                 if (data.length === 0) {
                     tbody.append("<tr><td colspan='6'>No data available</td></tr>");
                     return;
                 }
-
-                // Maintain DataFrame Order (Extract column order from first row)
-                let columns = Object.keys(data[0]);
-
-                // Populate Table Header in Original DataFrame Order
+    
+                // Populate Table Header with Defined Column Order
                 columns.forEach(col => {
                     thead.append(`<th>${col}</th>`);
                 });
-
-                // Populate Rows
+    
+                // Populate Rows with Defined Column Order
                 data.forEach(row => {
                     let rowHtml = "<tr>";
                     columns.forEach(col => {
