@@ -21,7 +21,7 @@ import warnings
 import concurrent.futures
 import time
 import zipfile
-from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER
+from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER, INDEX_MAPPING
 from utils.logs import insert_logs
 from flask import Flask, render_template, request, jsonify
 
@@ -312,7 +312,85 @@ def process():
     elif main_menu == "delete_report":
         delete_data(start_date, end_date, submenu, conn, cur)
         return jsonify({'message': 'Generate report for delete processing successful'})
-
+    elif main_menu == "download_txt":
+        cwd = os.getcwd()
+        #create txt_files folder if it does not exist
+        txt_files_folder = os.path.join(cwd, "DownloadedFiles", "txt_files")
+        os.makedirs(txt_files_folder, exist_ok=True)
+        
+        if submenu=="All files":
+            # fetch NSE for start date and end date with TIMESTAMP as the date column
+            nse_query = f"SELECT * FROM public.\"NSE\" WHERE \"TIMESTAMP\" >= '{start_date}' AND \"TIMESTAMP\" <= '{end_date}' ORDER BY \"TIMESTAMP\""
+            nse_df = sqlio.read_sql_query(nse_query, conn)
+            
+            #fetch  BSE for start date and end date with TRADING_DATE as date column
+            bse_query = f"SELECT * FROM public.\"BSE\" WHERE \"TRADING_DATE\" >= '{start_date}' AND \"TRADING_DATE\" <= '{end_date}' ORDER BY \"TRADING_DATE\""
+            bse_df = sqlio.read_sql_query(bse_query, conn)
+            
+            # fetch IndexHistory for start date and end date with DATE as date column
+            index_query = f"SELECT * FROM public.\"IndexHistory\" WHERE \"DATE\" >= '{start_date}' AND \"DATE\" <= '{end_date}' ORDER BY \"DATE\""
+            index_df = sqlio.read_sql_query(index_query, conn)
+            
+            # fetch mf_ohlc for start date and end date with date as date column  
+            mf_query = f"SELECT * FROM public.\"mf_ohlc\" WHERE \"date\" >= '{start_date}' AND \"date\" <= '{end_date}' ORDER BY \"date\""
+            mf_df = sqlio.read_sql_query(mf_query, conn)
+            
+            nse_df = nse_df[['SYMBOL', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'TOTTRDQTY']]
+            bse_df = bse_df[['SC_CODE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
+            
+            index_df['TICKER'] = index_df['TICKER'].map(INDEX_MAPPING)
+            
+            # download all the files into txt_files folder
+            nse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"NSE-{start_date}-{end_date}.txt")
+            nse_df.to_csv(nse_output_file, sep=',', index=False, header=False)
+            
+            bse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"BSE-{start_date}-{end_date}.txt")
+            bse_df.to_csv(bse_output_file, sep=',', index=False, header=False)
+            
+            index_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"IRSOHLC-{start_date}-{end_date}.txt")
+            index_df.to_csv(index_output_file, sep=',', index=False, header=False)
+            
+            mf_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"MFOHLC-{start_date}-{end_date}.txt")
+            mf_df.to_csv(mf_output_file, sep=',', index=False, header=False)
+                    
+        elif submenu=="NSE":
+            # fetch NSE for start date and end date with TIMESTAMP as the date column
+            nse_query = f"SELECT * FROM public.\"NSE\" WHERE \"TIMESTAMP\" >= '{start_date}' AND \"TIMESTAMP\" <= '{end_date}' ORDER BY \"TIMESTAMP\""
+            nse_df = sqlio.read_sql_query(nse_query, conn)
+            nse_df = nse_df[['SYMBOL', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'TOTTRDQTY']]
+            
+            nse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"NSE-{start_date}-{end_date}.txt")
+            nse_df.to_csv(nse_output_file, sep=',', index=False, header=False)
+        elif submenu=="BSE":
+            #fetch  BSE for start date and end date with TRADING_DATE as date column
+            bse_query = f"SELECT * FROM public.\"BSE\" WHERE \"TRADING_DATE\" >= '{start_date}' AND \"TRADING_DATE\" <= '{end_date}' ORDER BY \"TRADING_DATE\""
+            bse_df = sqlio.read_sql_query(bse_query, conn)
+            bse_df = bse_df[['SC_CODE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
+            
+            bse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"BSE-{start_date}-{end_date}.txt")
+            bse_df.to_csv(bse_output_file, sep=',', index=False, header=False)
+            
+        elif submenu=="IRSOHLC":
+            # fetch IndexHistory for start date and end date with DATE as date column
+            index_query = f"SELECT * FROM public.\"IndexHistory\" WHERE \"DATE\" >= '{start_date}' AND \"DATE\" <= '{end_date}' ORDER BY \"DATE\""
+            index_df = sqlio.read_sql_query(index_query, conn)
+            index_df['TICKER'] = index_df['TICKER'].map(INDEX_MAPPING)
+            
+            index_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"IRSOHLC-{start_date}-{end_date}.txt")
+            index_df.to_csv(index_output_file, sep=',', index=False, header=False)
+            
+        elif submenu=="MFOHLC":
+            # fetch mf_ohlc for start date and end date with date as date column
+            mf_query = f"SELECT * FROM public.\"mf_ohlc\" WHERE \"date\" >= '{start_date}' AND \"date\" <= '{end_date}' ORDER BY \"date\""
+            mf_df = sqlio.read_sql_query(mf_query, conn)
+            
+            mf_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"MFOHLC-{start_date}-{end_date}.txt")
+            mf_df.to_csv(mf_output_file, sep=',', index=False, header=False)
+        else:
+            return jsonify({'message': 'Invalid submenu value'})
+        
+        return jsonify({'message': 'Download txt processing successful'})
+        
     elif main_menu == "download":
         cwd = os.getcwd()
         print(cwd)
@@ -346,7 +424,9 @@ def process():
         for report in selected_reports:
             table, date_column = report_mapping[report]
             output_name= table.split('.')[1].replace('\"', '')
-            output_file = os.path.join(cwd, "DownloadedFiles", f"{output_name}-{start_date}-{end_date}.csv")
+            # create reports folder if it does not exist
+            os.makedirs(os.path.join(cwd, "DownloadedFiles", "reports"), exist_ok=True)
+            output_file = os.path.join(cwd, "DownloadedFiles","reports",  f"{output_name}-{start_date}-{end_date}.csv")
             print(output_file)
             query = f"SELECT * FROM {table} WHERE {date_column} >= '{start_date}' AND {date_column} <= '{end_date}' ORDER BY {date_column}"
             df = sqlio.read_sql_query(query, con = conn)
@@ -460,213 +540,8 @@ def download_csv(csv, report, filename):
     if report=='IRS':
         print("the report that is being downloaded is IRS and the indexmapping is going to take place")
         # index_mapping = {'INDUSTRY-Automobiles': 'AUTO-I', 'INDUSTRY-Automobile Components': 'AUTOCOMP-I', 'INDUSTRY-Specialty Retail': 'SPECRETAI-I', 'INDUSTRY-Consumer Staples Distribution & Retail': 'CONSTAPDIST-I', 'INDUSTRY-Broadline Retail': 'BROADRETAI-I', 'INDUSTRY-Food Products': 'FOODPROD-I', 'INDUSTRY-Beverages': 'BEVERAGE-I', 'INDUSTRY-Building Products': 'BUILDPROD-I', 'INDUSTRY-Construction & Engineering': 'CONSENGINE-I', 'INDUSTRY-Chemicals': 'CHEMICAL-I', 'INDUSTRY-Textiles, Apparel & Luxury Goods': 'TEXAPPLUX-I', 'INDUSTRY-Containers & Packaging': 'CONTAINPKG-I', 'INDUSTRY-Oil, Gas & Consumable Fuels': 'ONGCONFUEL-I', 'INDUSTRY-Household Products': 'HOUSEPROD-I', 'INDUSTRY-Personal Care Products': 'PERCARPROD-I', 'INDUSTRY-Pharmaceuticals': 'PHARMAC-I', 'INDUSTRY-Health Care Equipment & Supplies': 'HLTCAEQSUPP-I', 'INDUSTRY-Tobacco': 'TOBACCO-I', 'INDUSTRY-Household Durables': 'HOUSEDUR-I', 'INDUSTRY-Technology Hardware, Storage & Peripherals': 'TECHARDSOFTPER-I', 'INDUSTRY-Software': 'SOFTWARE-I', 'INDUSTRY-Electronic Equipment, Instruments & Components': 'ELEEQINSCMP-I', 'INDUSTRY-Commercial Services & Supplies': 'COMSERVSUP-I', 'INDUSTRY-Electrical Equipment': 'ELECEQUIP-I', 'INDUSTRY-IT Services': 'ITSERV-I', 'INDUSTRY-Machinery': 'MACHINERY-I', 'INDUSTRY-Insurance': 'INSURAN-I', 'INDUSTRY-Banks': 'BANKS-I', 'INDUSTRY-Financial Services': 'FINSERV-I', 'INDUSTRY-Capital Markets': 'CAPIMKT-I', 'INDUSTRY-Metals & Mining': 'METAMINE-I', 'INDUSTRY-Energy Equipment & Services': 'ENEQUSERV-I', 'INDUSTRY-Electric Utilities': 'ELECUTIL-I', 'INDUSTRY-Diversified Telecommunication Services': 'DIVTELECOMSERV-I', 'INDUSTRY-Independent Power and Renewable Electricity Producers': 'INDPOWRENEL-I', 'INDUSTRY-Paper & Forest Products': 'PAPFORPROD-I', 'INDUSTRY-Health Care Providers & Services': 'HLTCAPROSERV-I', 'INDUSTRY-Marine Transportation': 'MARITRA-I', 'INDUSTRY-Ground Transportation': 'GRNDTRAN-SI', 'INDUSTRY-Air Freight & Logistics': 'AIRFRELOGIS-I', 'INDUSTRY-Hotels, Restaurants & Leisure': 'HOTRESLEIS-I', 'INDUSTRY-Transportation Infrastructure': 'TRANSINFRA-I', 'INDUSTRY-Interactive Media & Services': 'INTMEDSERV-I', 'INDUSTRY-Diversified Consumer Services': 'DIVERCONSERV-I', 'INDUSTRY-Real Estate Management & Development': 'RESMGMDEV-I', 'INDUSTRY-Entertainment': 'ENTERTAIN-I', 'INDUSTRY-Retail REITs': 'RETIALREIT-I', 'INDUSTRY-Media': 'MEDIA-I', 'INDUSTRY-Gas Utilities': 'GASUTIL-I', 'INDUSTRY-Leisure Products': 'LEISPROD-I', 'SUBINDUSTRY-Auto - LCVs/HCVs': 'AUTLCVHCV-SI', 'SUBINDUSTRY-Auto - Cars & Jeeps': 'AUTCARJEE-SI', 'SUBINDUSTRY-Motorcycle Manufacturers': 'MOTORMFG-SI', 'SUBINDUSTRY-Automotive Parts & Equipment': 'AUTPEQUIP-SI', 'SUBINDUSTRY-Tires & Rubber': 'TIRERUB-SI', 'SUBINDUSTRY-Carbon Black': 'CARBLCK-SI', 'SUBINDUSTRY-Other Specialty Retail': 'OTHSPECRETL-SI', 'SUBINDUSTRY-Retail - Departmental Stores': 'RETDEPTSTO-SI', 'SUBINDUSTRY-Retail - Apparel': 'RETAPPAREL-SI', 'SUBINDUSTRY-Retail - Apparel/Accessories': 'RETAPPARACC-SI', 'SUBINDUSTRY-Trading': 'TRADING-SI', 'SUBINDUSTRY-Plantations': 'PLANTATIO-SI', 'SUBINDUSTRY-Distillers & Vintners': 'DISTILVINTN-SI', 'SUBINDUSTRY-Aqua & Horticulture': 'AQUAHORTIC-SI', 'SUBINDUSTRY-Edible Oils': 'EDIBLEOIL-SI', 'SUBINDUSTRY-Agricultural Products & Services': 'AGRIPROSER-SI', 'SUBINDUSTRY-Soft Drinks & Non-alcoholic Beverages': 'SODRINALCBEV-SI', 'SUBINDUSTRY-Packaged Foods & Meats': 'PKGFOODMEAT-SI', 'SUBINDUSTRY-Sugar': 'SUGAR-SI', 'SUBINDUSTRY-Cement & Products': 'CEMPROD-SI', 'SUBINDUSTRY-Tiles & Granites': 'TILEGRANI-SI', 'SUBINDUSTRY-Decoratives & Laminates': 'DECOLAMIN-SI', 'SUBINDUSTRY-Paints': 'PAINTS-SI', 'SUBINDUSTRY-Building Products': 'BUILDPROD-SI', 'SUBINDUSTRY-Construction & Engineering': 'CONSENGINE-SI', 'SUBINDUSTRY-Commodity Chemicals': 'COMMOCHEM-SI', 'SUBINDUSTRY-Specialty Chemicals': 'SPECHEM-SI', 'SUBINDUSTRY-Fertilizers & Agricultural Chemicals': 'FERAGRICHM-SI', 'SUBINDUSTRY-Diversified Chemicals': 'DIVERCHEM-SI', 'SUBINDUSTRY-Textiles': 'TEXTILES-SI', 'SUBINDUSTRY-Paper & Plastic Packaging Products & Materials': 'PPLPGPROMAT-SI', 'SUBINDUSTRY-Oil & Gas Refining & Marketing': 'ONGREFMKT-SI', 'SUBINDUSTRY-Household Products': 'HOUSEPROD-SI', 'SUBINDUSTRY-Personal Care Products': 'PERCARPROD-SI', 'SUBINDUSTRY-Pharmaceuticals': 'PHARMAC-SI', 'SUBINDUSTRY-Apparel, Accessories & Luxury Goods': 'APPACCLUX-SI', 'SUBINDUSTRY-Health Care Supplies': 'HLTCARESUPP-SI', 'SUBINDUSTRY-Tobacco': 'TOBACCO-SI', 'SUBINDUSTRY-Household Appliances': 'HOUSEAPPLI-SI', 'SUBINDUSTRY-Technology Hardware, Storage & Peripherals': 'TECHARDSOFTPER-SI', 'SUBINDUSTRY-Systems Software': 'SYSOFT-SI', 'SUBINDUSTRY-Electronic Equipment & Instruments': 'ELECEQUINS-SI', 'SUBINDUSTRY-Office Services & Supplies': 'OFFSERVSUPP-SI', 'SUBINDUSTRY-Consumer Electronics': 'CONSELEC-SI', 'SUBINDUSTRY-Electrical Components & Equipment': 'ELECOMEQU-SI', 'SUBINDUSTRY-Health Care Equipment': 'HLTCAREQU-SI', 'SUBINDUSTRY-Application Software': 'APPLICSOFT-SI', 'SUBINDUSTRY-IT Consulting & Other Services': 'ITCONSOTHSV-SI', 'SUBINDUSTRY-Research & Consulting Services': 'RESCONSERV-SI', 'SUBINDUSTRY-Industrial Machinery & Supplies & Components': 'INDMCHSUPCOM-SI', 'SUBINDUSTRY-Finance - Life Insurance': 'FINLIFINS-SI', 'SUBINDUSTRY-Private Banks': 'PVTBNK-SI', 'SUBINDUSTRY-Finance - Term Lending': 'FINTERLEND-SI', 'SUBINDUSTRY-Finance - Mutual Funds': 'FINMF-SI', 'SUBINDUSTRY-Investment Trusts': 'INVTRUST-SI', 'SUBINDUSTRY-Finance - Housing': 'FINHSG-SI', 'SUBINDUSTRY-Finance & Investments': 'FININVTS-SI', 'SUBINDUSTRY-PSU Banks': 'PSUBNK-SI', 'SUBINDUSTRY-Finance - Non Life Insurance': 'FINNONLIFINS-SI', 'SUBINDUSTRY-Reinsurance': 'REINSURE-SI', 'SUBINDUSTRY-Financial Exchanges & Data': 'FINEXCHDATA-SI', 'SUBINDUSTRY-Bearings': 'BEARINGS-SI', 'SUBINDUSTRY-Ferro Alloys': 'FERALLO-SI', 'SUBINDUSTRY-Fasteners': 'FASTENERS-SI', 'SUBINDUSTRY-Industrial Gases': 'INDUSGAS-SI', 'SUBINDUSTRY-Metal, Glass & Plastic Containers': 'METGLAPLACON-SI', 'SUBINDUSTRY-Aluminum': 'ALUMINIUM-SI', 'SUBINDUSTRY-Precious Metals & Minerals': 'PRECMETMIN-SI', 'SUBINDUSTRY-Diversified Metals & Mining': 'DIVERMETMIN-SI', 'SUBINDUSTRY-Oil & Gas Drilling': 'ONGDRILL-SI', 'SUBINDUSTRY-Electric Utilities': 'ELECUTILI-SI', 'SUBINDUSTRY-Telecommunications - Equipment': 'TELECOMEQU-SI', 'SUBINDUSTRY-Heavy Electrical Equipment': 'HVYELECEQUIP-SI', 'SUBINDUSTRY-Renewable Electricity': 'RENEWELEC-SI', 'SUBINDUSTRY-Copper': 'COPPER-SI', 'SUBINDUSTRY-Integrated Telecommunication Services': 'INTGTELCOSVC-SI', 'SUBINDUSTRY-Infrastructure - General': 'INFRAGEN-SI', 'SUBINDUSTRY-Steel': 'STEEL-SI', 'SUBINDUSTRY-Paper Products': 'PAPERPROD-SI1', 'SUBINDUSTRY-Livestock - Hatcheries/Poultry': 'LIVHATCHPOUL-SI', 'SUBINDUSTRY-Health Care Facilities': 'HLTCAREFACIL-SI', 'SUBINDUSTRY-Marine Transportation': 'MARITRA-SI', 'SUBINDUSTRY-Transport - Road': 'TRAROAD-SI', 'SUBINDUSTRY-Transport - Air': 'TRAAIR-SI', 'SUBINDUSTRY-Hotels, Resorts & Cruise Lines': 'HOTRESCRUIS-SI', 'SUBINDUSTRY-Marine Ports & Services': 'MARIPORSV-SI', 'SUBINDUSTRY-Diversified Support Services': 'DIVERSUPSER-SI', 'SUBINDUSTRY-Interactive Media & Services': 'INTMEDSERV-SI', 'SUBINDUSTRY-Fire Protection Equipment': 'FIRPROTEQU-SI', 'SUBINDUSTRY-LPG Bottling/Distribution': 'LPGBOTDIST-SI', 'SUBINDUSTRY-Commercial Printing': 'COMMERPRINT-SI', 'SUBINDUSTRY-Agricultural & Farm Machinery': 'AGRIFARMCH-SI', 'SUBINDUSTRY-Diversified Financial Services': 'DIVERFINSER-SI', 'SUBINDUSTRY-E-Commerce - Retail': 'ECOMRET-SI', 'SUBINDUSTRY-Education Services': 'EDUSERV-SI', 'SUBINDUSTRY-Real Estate Development': 'REALSTATDEV-SI', 'SUBINDUSTRY-Waste Management': 'WASTEMAN-SI', 'SUBINDUSTRY-Multi-Sector Holdings': 'MULTSECTHLD-SI', 'SUBINDUSTRY-Fintech': 'FINTEC-SI', 'SUBINDUSTRY-Health Care Services': 'HLTCARESERV-SI', 'SUBINDUSTRY-Digital Entertainment': 'DIGIENTER-SI', 'SUBINDUSTRY-Leisure Facilities': 'LEISFACIL-SI', 'SUBINDUSTRY-Dairy': 'DAIRY-SI', 'SUBINDUSTRY-Marine Foods': 'MARIFOOD-SI', 'SUBINDUSTRY-Road Infrastructure': 'ROADINFRA-SI', 'SUBINDUSTRY-Retail REITs': 'RETAILREIT-SI', 'SUBINDUSTRY-Specialized Finance': 'SPECIFIN-SI', 'SUBINDUSTRY-Railway Wagons and Wans': 'RAILWAGWAN-SI', 'SUBINDUSTRY-Footwear': 'FOOTWEAR-SI', 'SUBINDUSTRY-Advertising': 'ADVERT-SI', 'SUBINDUSTRY-Construction Machinery & Heavy Transportation Equipment': 'CONMCHVYTRN-SI', 'SUBINDUSTRY-Home Furnishings': 'HOMFURNIS-SI', 'SUBINDUSTRY-Gas Utilities': 'GASUTIL-SI', 'SUBINDUSTRY-Insurance Brokers': 'INSURBROK-SI', 'SUBINDUSTRY-Leisure Products': 'LEISPROD-SI', 'SUBINDUSTRY-Micro Finance Institutions': 'MICROFININS-SI', 'SUBINDUSTRY-Oil & Gas Equipment & Services': 'ONGEQUSERV-SI', 'SUBINDUSTRY-Diversified Capital Markets': 'DIVERCAPMKT-SI', 'SECTOR-Consumer Discretionary': 'CONSDISC-S', 'SECTOR-Consumer Staples': 'CONSTAPL-S', 'SECTOR-Industrials': 'INDUSTRIAL-S', 'SECTOR-Materials': 'MATERIALS-S', 'SECTOR-Energy': 'ENERGY-S', 'SECTOR-Health Care': 'HLTHCARE-S', 'SECTOR-Information Technology': 'INFOTEC-S', 'SECTOR-Financials': 'FINANCIALS-S', 'SECTOR-Utilities': 'UTILITIES-S', 'SECTOR-Communication Services': 'COMMSERV-S', 'SECTOR-Real Estate': 'REALESTATE-S', 'SUBSECTOR-Automobiles & Components': 'AUTOCOMP-SS', 'SUBSECTOR-Consumer Discretionary Distribution & Retail': 'CONSDDRETA-SS', 'SUBSECTOR-Consumer Staples Distribution & Retail': 'CONSTAPDISRE-SS', 'SUBSECTOR-Food, Beverage & Tobacco': 'FOOBEVTOBA-SS', 'SUBSECTOR-Capital Goods': 'CAPIGOOD-SS', 'SUBSECTOR-Materials': 'MATERIAL-SS', 'SUBSECTOR-Consumer Durables & Apparel': 'CONSDURAPP-SS', 'SUBSECTOR-Energy': 'ENERGY-SS', 'SUBSECTOR-Household & Personal Products': 'HOUSPERS-SS', 'SUBSECTOR-Pharmaceuticals, Biotechnology & Life Sciences': 'PHARMBIOLIFS-SS', 'SUBSECTOR-Health Care Equipment & Services': 'HLTCAREQUSV-SS', 'SUBSECTOR-Technology Hardware & Equipment': 'TECHARDEQUI-SS', 'SUBSECTOR-Software & Services': 'SOFTSERV-SS', 'SUBSECTOR-Commercial & Professional Services': 'COMPRFSERV-SS', 'SUBSECTOR-Insurance': 'INSURANCE-SS', 'SUBSECTOR-Banks': 'BANKS-SS', 'SUBSECTOR-Financial Services': 'FINSERV-SS', 'SUBSECTOR-Utilities': 'UTILITIES-SS', 'SUBSECTOR-Telecommunication Services': 'TELECOSERV-SS', 'SUBSECTOR-Transportation': 'TRANSPORT-SS', 'SUBSECTOR-Consumer Services': 'CONSERV-SS', 'SUBSECTOR-Media & Entertainment': 'MEDIAENT-SS', 'SUBSECTOR-Real Estate Management & Development': 'RESMGMDEV-SS', 'SUBSECTOR-Equity Real Estate Investment Trusts (REITs)': 'EQREITS-SS'}
-        index_mapping = {
-                        'INDUSTRY-Automobiles': 'AUTO-I',
-                        'INDUSTRY-Automobile Components': 'AUTOCOMP-I',
-                        'INDUSTRY-Specialty Retail': 'SPECRETAI-I',
-                        'INDUSTRY-Consumer Staples Distribution & Retail': 'CONSTAPDIST-I',
-                        'INDUSTRY-Broadline Retail': 'BROADRETAI-I',
-                        'INDUSTRY-Food Products': 'FOODPROD-I',
-                        'INDUSTRY-Beverages': 'BEVERAGE-I',
-                        'INDUSTRY-Building Products': 'BUILDPROD-I',
-                        'INDUSTRY-Construction & Engineering': 'CONSENGINE-I',
-                        'INDUSTRY-Chemicals': 'CHEMICAL-I',
-                        'INDUSTRY-Textiles, Apparel & Luxury Goods': 'TEXAPPLUX-I',
-                        'INDUSTRY-Containers & Packaging': 'CONTAINPKG-I',
-                        'INDUSTRY-Oil, Gas & Consumable Fuels': 'ONGCONFUEL-I',
-                        'INDUSTRY-Household Products': 'HOUSEPROD-I',
-                        'INDUSTRY-Personal Care Products': 'PERCARPROD-I',
-                        'INDUSTRY-Pharmaceuticals': 'PHARMAC-I',
-                        'INDUSTRY-Health Care Equipment & Supplies': 'HLTCAEQSUPP-I',
-                        'INDUSTRY-Tobacco': 'TOBACCO-I',
-                        'INDUSTRY-Household Durables': 'HOUSEDUR-I',
-                        'INDUSTRY-Technology Hardware, Storage & Peripherals': 'TECHARDSOFTPER-I',
-                        'INDUSTRY-Software': 'SOFTWARE-I',
-                        'INDUSTRY-Electronic Equipment, Instruments & Components': 'ELEEQINSCMP-I',
-                        'INDUSTRY-Commercial Services & Supplies': 'COMSERVSUP-I',
-                        'INDUSTRY-Electrical Equipment': 'ELECEQUIP-I',
-                        'INDUSTRY-IT Services': 'ITSERV-I',
-                        'INDUSTRY-Machinery': 'MACHINERY-I',
-                        'INDUSTRY-Insurance': 'INSURAN-I',
-                        'INDUSTRY-Banks': 'BANKS-I',
-                        'INDUSTRY-Financial Services': 'FINSERV-I',
-                        'INDUSTRY-Capital Markets': 'CAPIMKT-I',
-                        'INDUSTRY-Metals & Mining': 'METAMINE-I',
-                        'INDUSTRY-Energy Equipment & Services': 'ENEQUSERV-I',
-                        'INDUSTRY-Electric Utilities': 'ELECUTIL-I',
-                        'INDUSTRY-Diversified Telecommunication Services': 'DIVTELECOMSERV-I',
-                        'INDUSTRY-Independent Power and Renewable Electricity Producers': 'INDPOWRENEL-I',
-                        'INDUSTRY-Paper & Forest Products': 'PAPFORPROD-I',
-                        'INDUSTRY-Health Care Providers & Services': 'HLTCAPROSERV-I',
-                        'INDUSTRY-Marine Transportation': 'MARITRA-I',
-                        'INDUSTRY-Ground Transportation': 'GRNDTRAN-SI',
-                        'INDUSTRY-Air Freight & Logistics': 'AIRFRELOGIS-I',
-                        'INDUSTRY-Hotels, Restaurants & Leisure': 'HOTRESLEIS-I',
-                        'INDUSTRY-Transportation Infrastructure': 'TRANSINFRA-I',
-                        'INDUSTRY-Interactive Media & Services': 'INTMEDSERV-I',
-                        'INDUSTRY-Diversified Consumer Services': 'DIVERCONSERV-I',
-                        'INDUSTRY-Real Estate Management & Development': 'RESMGMDEV-I',
-                        'INDUSTRY-Entertainment': 'ENTERTAIN-I',
-                        'INDUSTRY-Retail REITs': 'RETIALREIT-I',
-                        'INDUSTRY-Media': 'MEDIA-I',
-                        'INDUSTRY-Gas Utilities': 'GASUTIL-I',
-                        'INDUSTRY-Leisure Products': 'LEISPROD-I',
-                        'SUBINDUSTRY-Auto - LCVs/HCVs': 'AUTLCVHCV-SI',
-                        'SUBINDUSTRY-Auto - Cars & Jeeps': 'AUTCARJEE-SI',
-                        'SUBINDUSTRY-Motorcycle Manufacturers': 'MOTORMFG-SI',
-                        'SUBINDUSTRY-Automotive Parts & Equipment': 'AUTPEQUIP-SI',
-                        'SUBINDUSTRY-Tires & Rubber': 'TIRERUB-SI',
-                        'SUBINDUSTRY-Carbon Black': 'CARBLCK-SI',
-                        'SUBINDUSTRY-Other Specialty Retail': 'OTHSPECRETL-SI',
-                        'SUBINDUSTRY-Retail - Departmental Stores': 'RETDEPTSTO-SI',
-                        'SUBINDUSTRY-Retail - Apparel': 'RETAPPAREL-SI',
-                        'SUBINDUSTRY-Retail - Apparel/Accessories': 'RETAPPARACC-SI',
-                        'SUBINDUSTRY-Trading': 'TRADING-SI',
-                        'SUBINDUSTRY-Plantations': 'PLANTATIO-SI',
-                        'SUBINDUSTRY-Distillers & Vintners': 'DISTILVINTN-SI',
-                        'SUBINDUSTRY-Aqua & Horticulture': 'AQUAHORTIC-SI',
-                        'SUBINDUSTRY-Edible Oils': 'EDIBLEOIL-SI',
-                        'SUBINDUSTRY-Agricultural Products & Services': 'AGRIPROSER-SI',
-                        'SUBINDUSTRY-Soft Drinks & Non-alcoholic Beverages': 'SODRINALCBEV-SI',
-                        'SUBINDUSTRY-Packaged Foods & Meats': 'PKGFOODMEAT-SI',
-                        'SUBINDUSTRY-Sugar': 'SUGAR-SI',
-                        'SUBINDUSTRY-Cement & Products': 'CEMPROD-SI',
-                        'SUBINDUSTRY-Tiles & Granites': 'TILEGRANI-SI',
-                        'SUBINDUSTRY-Decoratives & Laminates': 'DECOLAMIN-SI',
-                        'SUBINDUSTRY-Paints': 'PAINTS-SI',
-                        'SUBINDUSTRY-Building Products': 'BUILDPROD-SI',
-                        'SUBINDUSTRY-Construction & Engineering': 'CONSENGINE-SI',
-                        'SUBINDUSTRY-Commodity Chemicals': 'COMMOCHEM-SI',
-                        'SUBINDUSTRY-Specialty Chemicals': 'SPECHEM-SI',
-                        'SUBINDUSTRY-Fertilizers & Agricultural Chemicals': 'FERAGRICHM-SI',
-                        'SUBINDUSTRY-Diversified Chemicals': 'DIVERCHEM-SI',
-                        'SUBINDUSTRY-Textiles': 'TEXTILES-SI',
-                        'SUBINDUSTRY-Paper & Plastic Packaging Products & Materials': 'PPLPGPROMAT-SI',
-                        'SUBINDUSTRY-Oil & Gas Refining & Marketing': 'ONGREFMKT-SI',
-                        'SUBINDUSTRY-Household Products': 'HOUSEPROD-SI',
-                        'SUBINDUSTRY-Personal Care Products': 'PERCARPROD-SI',
-                        'SUBINDUSTRY-Pharmaceuticals': 'PHARMAC-SI',
-                        'SUBINDUSTRY-Apparel, Accessories & Luxury Goods': 'APPACCLUX-SI',
-                        'SUBINDUSTRY-Health Care Supplies': 'HLTCARESUPP-SI',
-                        'SUBINDUSTRY-Tobacco': 'TOBACCO-SI',
-                        'SUBINDUSTRY-Household Appliances': 'HOUSEAPPLI-SI',
-                        'SUBINDUSTRY-Technology Hardware, Storage & Peripherals': 'TECHARDSOFTPER-SI',
-                        'SUBINDUSTRY-Systems Software': 'SYSOFT-SI',
-                        'SUBINDUSTRY-Electronic Equipment & Instruments': 'ELECEQUINS-SI',
-                        'SUBINDUSTRY-Office Services & Supplies': 'OFFSERVSUPP-SI',
-                        'SUBINDUSTRY-Consumer Electronics': 'CONSELEC-SI',
-                        'SUBINDUSTRY-Electrical Components & Equipment': 'ELECOMEQU-SI',
-                        'SUBINDUSTRY-Health Care Equipment': 'HLTCAREQU-SI',
-                        'SUBINDUSTRY-Application Software': 'APPLICSOFT-SI',
-                        'SUBINDUSTRY-IT Consulting & Other Services': 'ITCONSOTHSV-SI',
-                        'SUBINDUSTRY-Research & Consulting Services': 'RESCONSERV-SI',
-                        'SUBINDUSTRY-Industrial Machinery & Supplies & Components': 'INDMCHSUPCOM-SI',
-                        'SUBINDUSTRY-Finance - Life Insurance': 'FINLIFINS-SI',
-                        'SUBINDUSTRY-Private Banks': 'PVTBNK-SI',
-                        'SUBINDUSTRY-Finance - Term Lending': 'FINTERLEND-SI',
-                        'SUBINDUSTRY-Finance - Mutual Funds': 'FINMF-SI',
-                        'SUBINDUSTRY-Investment Trusts': 'INVTRUST-SI',
-                        'SUBINDUSTRY-Finance - Housing': 'FINHSG-SI',
-                        'SUBINDUSTRY-Finance & Investments': 'FININVTS-SI',
-                        'SUBINDUSTRY-PSU Banks': 'PSUBNK-SI',
-                        'SUBINDUSTRY-Finance - Non Life Insurance': 'FINNONLIFINS-SI',
-                        'SUBINDUSTRY-Reinsurance': 'REINSURE-SI',
-                        'SUBINDUSTRY-Financial Exchanges & Data': 'FINEXCHDATA-SI',
-                        'SUBINDUSTRY-Bearings': 'BEARINGS-SI',
-                        'SUBINDUSTRY-Ferro Alloys': 'FERALLO-SI',
-                        'SUBINDUSTRY-Fasteners': 'FASTENERS-SI',
-                        'SUBINDUSTRY-Industrial Gases': 'INDUSGAS-SI',
-                        'SUBINDUSTRY-Metal, Glass & Plastic Containers': 'METGLAPLACON-SI',
-                        'SUBINDUSTRY-Aluminum': 'ALUMINIUM-SI',
-                        'SUBINDUSTRY-Precious Metals & Minerals': 'PRECMETMIN-SI',
-                        'SUBINDUSTRY-Diversified Metals & Mining': 'DIVERMETMIN-SI',
-                        'SUBINDUSTRY-Oil & Gas Drilling': 'ONGDRILL-SI',
-                        'SUBINDUSTRY-Electric Utilities': 'ELECUTILI-SI',
-                        'SUBINDUSTRY-Telecommunications - Equipment': 'TELECOMEQU-SI',
-                        'SUBINDUSTRY-Heavy Electrical Equipment': 'HVYELECEQUIP-SI',
-                        'SUBINDUSTRY-Renewable Electricity': 'RENEWELEC-SI',
-                        'SUBINDUSTRY-Copper': 'COPPER-SI',
-                        'SUBINDUSTRY-Integrated Telecommunication Services': 'INTGTELCOSVC-SI',
-                        'SUBINDUSTRY-Infrastructure - General': 'INFRAGEN-SI',
-                        'SUBINDUSTRY-Steel': 'STEEL-SI',
-                        'SUBINDUSTRY-Paper Products': 'PAPERPROD-SI1',
-                        'SUBINDUSTRY-Livestock - Hatcheries/Poultry': 'LIVHATCHPOUL-SI',
-                        'SUBINDUSTRY-Health Care Facilities': 'HLTCAREFACIL-SI',
-                        'SUBINDUSTRY-Marine Transportation': 'MARITRA-SI',
-                        'SUBINDUSTRY-Transport - Road': 'TRAROAD-SI',
-                        'SUBINDUSTRY-Transport - Air': 'TRAAIR-SI',
-                        'SUBINDUSTRY-Hotels, Resorts & Cruise Lines': 'HOTRESCRUIS-SI',
-                        'SUBINDUSTRY-Marine Ports & Services': 'MARIPORSV-SI',
-                        'SUBINDUSTRY-Diversified Support Services': 'DIVERSUPSER-SI',
-                        'SUBINDUSTRY-Interactive Media & Services': 'INTMEDSERV-SI',
-                        'SUBINDUSTRY-Fire Protection Equipment': 'FIRPROTEQU-SI',
-                        'SUBINDUSTRY-LPG Bottling/Distribution': 'LPGBOTDIST-SI',
-                        'SUBINDUSTRY-Commercial Printing': 'COMMERPRINT-SI',
-                        'SUBINDUSTRY-Agricultural & Farm Machinery': 'AGRIFARMCH-SI',
-                        'SUBINDUSTRY-Diversified Financial Services': 'DIVERFINSER-SI',
-                        'SUBINDUSTRY-E-Commerce - Retail': 'ECOMRET-SI',
-                        'SUBINDUSTRY-Education Services': 'EDUSERV-SI',
-                        'SUBINDUSTRY-Real Estate Development': 'REALSTATDEV-SI',
-                        'SUBINDUSTRY-Waste Management': 'WASTEMAN-SI',
-                        'SUBINDUSTRY-Multi-Sector Holdings': 'MULTSECTHLD-SI',
-                        'SUBINDUSTRY-Fintech': 'FINTEC-SI',
-                        'SUBINDUSTRY-Health Care Services': 'HLTCARESERV-SI',
-                        'SUBINDUSTRY-Digital Entertainment': 'DIGIENTER-SI',
-                        'SUBINDUSTRY-Leisure Facilities': 'LEISFACIL-SI',
-                        'SUBINDUSTRY-Dairy': 'DAIRY-SI',
-                        'SUBINDUSTRY-Marine Foods': 'MARIFOOD-SI',
-                        'SUBINDUSTRY-Road Infrastructure': 'ROADINFRA-SI',
-                        'SUBINDUSTRY-Retail REITs': 'RETAILREIT-SI',
-                        'SUBINDUSTRY-Specialized Finance': 'SPECIFIN-SI',
-                        'SUBINDUSTRY-Railway Wagons and Wans': 'RAILWAGWAN-SI',
-                        'SUBINDUSTRY-Footwear': 'FOOTWEAR-SI',
-                        'SUBINDUSTRY-Advertising': 'ADVERT-SI',
-                        'SUBINDUSTRY-Construction Machinery & Heavy Transportation Equipment': 'CONMCHVYTRN-SI',
-                        'SUBINDUSTRY-Home Furnishings': 'HOMFURNIS-SI',
-                        'SUBINDUSTRY-Gas Utilities': 'GASUTIL-SI',
-                        'SUBINDUSTRY-Insurance Brokers': 'INSURBROK-SI',
-                        'SUBINDUSTRY-Leisure Products': 'LEISPROD-SI',
-                        'SUBINDUSTRY-Micro Finance Institutions': 'MICROFININS-SI',
-                        'SUBINDUSTRY-Oil & Gas Equipment & Services': 'ONGEQUSERV-SI',
-                        'SUBINDUSTRY-Diversified Capital Markets': 'DIVERCAPMKT-SI',
-                        'SECTOR-Consumer Discretionary': 'CONSDISC-S',
-                        'SECTOR-Consumer Staples': 'CONSTAPL-S',
-                        'SECTOR-Industrials': 'INDUSTRIAL-S',
-                        'SECTOR-Materials': 'MATERIALS-S',
-                        'SECTOR-Energy': 'ENERGY-S',
-                        'SECTOR-Health Care': 'HLTHCARE-S',
-                        'SECTOR-Information Technology': 'INFOTEC-S',
-                        'SECTOR-Financials': 'FINANCIALS-S',
-                        'SECTOR-Utilities': 'UTILITIES-S',
-                        'SECTOR-Communication Services': 'COMMSERV-S',
-                        'SECTOR-Real Estate': 'REALESTATE-S',
-                        'SUBSECTOR-Automobiles & Components': 'AUTOCOMP-SS',
-                        'SUBSECTOR-Consumer Discretionary Distribution & Retail': 'CONSDDRETA-SS',
-                        'SUBSECTOR-Consumer Staples Distribution & Retail': 'CONSTAPDISRE-SS',
-                        'SUBSECTOR-Food, Beverage & Tobacco': 'FOOBEVTOBA-SS',
-                        'SUBSECTOR-Capital Goods': 'CAPIGOOD-SS',
-                        'SUBSECTOR-Materials': 'MATERIAL-SS',
-                        'SUBSECTOR-Consumer Durables & Apparel': 'CONSDURAPP-SS',
-                        'SUBSECTOR-Energy': 'ENERGY-SS',
-                        'SUBSECTOR-Household & Personal Products': 'HOUSPERS-SS',
-                        'SUBSECTOR-Pharmaceuticals, Biotechnology & Life Sciences': 'PHARMBIOLIFS-SS',
-                        'SUBSECTOR-Health Care Equipment & Services': 'HLTCAREQUSV-SS',
-                        'SUBSECTOR-Technology Hardware & Equipment': 'TECHARDEQUI-SS',
-                        'SUBSECTOR-Software & Services': 'SOFTSERV-SS',
-                        'SUBSECTOR-Commercial & Professional Services': 'COMPRFSERV-SS',
-                        'SUBSECTOR-Insurance': 'INSURANCE-SS',
-                        'SUBSECTOR-Banks': 'BANKS-SS',
-                        'SUBSECTOR-Financial Services': 'FINSERV-SS',
-                        'SUBSECTOR-Utilities': 'UTILITIES-SS',
-                        'SUBSECTOR-Telecommunication Services': 'TELECOSERV-SS',
-                        'SUBSECTOR-Transportation': 'TRANSPORT-SS',
-                        'SUBSECTOR-Consumer Services': 'CONSERV-SS',
-                        'SUBSECTOR-Media & Entertainment': 'MEDIAENT-SS',
-                        'SUBSECTOR-Real Estate Management & Development': 'RESMGMDEV-SS',
-                        'SUBSECTOR-Equity Real Estate Investment Trusts (REITs)': 'EQREITS-SS'
-                    }
         # map the index_mapping to the IndexName column
-        csv['IndexName'] = csv['IndexName'].map(index_mapping)
+        csv['IndexName'] = csv['IndexName'].map(INDEX_MAPPING)
         
     try:        
         csv.to_csv(filename, index=False)
