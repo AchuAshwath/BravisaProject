@@ -150,6 +150,12 @@
         .active, .collapsible:hover {
             background-color: #00bcff;
         }
+        .space-between {
+            justify-content: space-between;
+        }
+        .space-around {
+            justify-content: space-around;
+        }
     </style>
   </head>
   <body>
@@ -209,6 +215,40 @@
       <div class="flex-center"></div>
       <!-- <p class="font">Missing Industries : {{missing_count}}</p> -->
       <!-- <p class="font margin-bottom">List of Codes Missing :{{missing_codes}} </p> -->
+      <div class="container margin-bottom">
+        <!-- <h1>Industry Map</h1> -->
+        <p class="font">Number of missing IndexNames: {{ missing_index_names_count }}</p>
+        <!-- <button type="button" class="collapsible">List of Missing IndustryCodes</button>
+        <ul class="missing-list">
+            {% for missing_index_name in missing_index_names %}
+                <li>{{ missing_index_name }}</li>
+            {% endfor %}
+        </ul> -->
+        <div class="flex-center margin-bottom-25 space-around">
+          <!-- <label class="width-30 font" for="dropdown">Select Missing IndexName:</label> -->
+          <select id="missing_index_dropdown" name="dropdown" class="width-30 font">
+            {% for missing_index_name in missing_index_names %}
+                <option value="{{ missing_index_name }}">{{ missing_index_name }}</option>
+            {% endfor %}
+          </select>
+          <input
+            class="width-30 font"
+            type="text"
+            id="indexNameInput"
+            name="indexNameInput"
+            placeholder="Enter IndexName"
+          />
+        </div>
+        <div class="flex-center">
+          <input
+            id="index-submit-button"
+            class="button font"
+            style="margin-bottom: 15px"
+            type="submit"
+            value="Submit"
+          />
+        </div>
+      </div>
       <div class="container margin-bottom">
         <!-- <h1>Industry Map</h1> -->
         <p class="font">Number of missing IndustryCodes: {{ missing_count }}</p>
@@ -335,50 +375,79 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", function() {
-          var coll = document.querySelector(".collapsible");
-          var content = document.querySelector(".missing-list");
+          var coll = document.querySelectorAll(".collapsible");
+          var contents = document.querySelectorAll(".missing-list");
 
-          coll.addEventListener("click", function() {
-              this.classList.toggle("active");
-              if (content.style.display === "block") {
-                  content.style.display = "none";
-              } else {
-                  content.style.display = "block";
-              }
+          coll.forEach(function(button, index) {
+              button.addEventListener("click", function() {
+                  this.classList.toggle("active");
+                  if (contents[index].style.display === "block") {
+                      contents[index].style.display = "none";
+                  } else {
+                      contents[index].style.display = "block";
+                  }
+              });
           });
-        });
+      });
+
       // Ensure all input fields are filled
       $("form").submit(function (event) {
-        // Check if any of the input fields are empty
-        let emptyFields = false;
-        $("input").each(function () {
-          if ($(this).val() === "") {
-            emptyFields = true;
-            return false; // Exit loop
+          // Check if any of the input fields are empty
+          let emptyFields = false;
+          $("input").each(function () {
+              if ($(this).val() === "") {
+                  emptyFields = true;
+                  return false; // Exit loop
+              }
+          });
+
+          if (emptyFields) {
+              event.preventDefault(); // Prevent form submission
+              alert("Please fill in all fields before submitting.");
+              return;
           }
-        });
 
-        if (emptyFields) {
+          // If all fields are filled, serialize and send the form data via AJAX
+          event.preventDefault();
+          $.ajax({
+              type: "POST",
+              url: "/add_industry_mapping",
+              data: $("form").serialize(),
+              success: function (response) {
+                  $("#result").text(response.message).css("color", "green");
+              },
+              error: function (jqXHR, textStatus, errorThrown) {
+                  $("#result").text("An error occurred: " + textStatus);
+              },
+          });
+      });
+      $("#index-submit-button").click(function (event) {
           event.preventDefault(); // Prevent form submission
-          alert("Please fill in all fields before submitting.");
+
+          let selectedMissingIndexName = $("#missing_index_dropdown").val();
+          let indexNameInput = $("#indexNameInput").val();
+
+          if (selectedMissingIndexName === "" || indexNameInput === "") {
+          alert("Please select a missing index name and enter an index name.");
           return;
-        }
+          }
 
-        // If all fields are filled, serialize and send the form data via AJAX
-        event.preventDefault();
-        $.ajax({
+          $.ajax({
           type: "POST",
-          url: "/add_industry_mapping",
-          data: $("form").serialize(),
+          url: "/add_index_mapping",
+          data: {
+          selected_missing_index_name: selectedMissingIndexName,
+          index_name: indexNameInput
+          },
           success: function (response) {
-            $("#result").text(response.message).css("color", "green");
-
+          $("#result").text(response.message).css("color", "green");
           },
           error: function (jqXHR, textStatus, errorThrown) {
-            $("#result").text("An error occurred: " + textStatus);
+          $("#result").text("An error occurred: " + textStatus);
           },
-        });
+          });
       });
+
     </script>
   </body>
 </html>

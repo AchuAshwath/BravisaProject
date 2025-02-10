@@ -21,7 +21,7 @@ import warnings
 import concurrent.futures
 import time
 import zipfile
-from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER, INDEX_MAPPING
+from config import OHLC_FOLDER, INDEX_OHLC_FOLDER, INDEX_FILES_FOLDER, FB_FOLDER
 from utils.logs import insert_logs
 from flask import Flask, render_template, request, jsonify
 
@@ -29,6 +29,8 @@ from flask import Flask, render_template, request, jsonify
 from routes.dash_reports import dash_reports
 from routes.dash_display import dash_display
 from routes.dash_summary import dash_summary
+from routes.industrymapping import industry_mapping
+from routes.uploadfile import uploadfile
 # from flask_bootstrap import Bootstrap5
 
 
@@ -88,82 +90,14 @@ app = Flask(__name__)
 app.register_blueprint(dash_reports)
 app.register_blueprint(dash_display)
 app.register_blueprint(dash_summary)
+app.register_blueprint(industry_mapping)
+app.register_blueprint(uploadfile)
 
 @app.route('/dash')
 def dashboard():
     return render_template('dash.html')
 
-@app.route('/fileupload')
-def fileupload():
-    return render_template('fileupload.html')
-
-@app.route('/uploadfile', methods=['POST'])
-def upload_file():
-    saved_files = []
-
-    # Handle FB file upload
-    for i in range(1, 4):
-        fileupload_name = 'FB0'+str(i)+'zip'  
-        fb_file = request.files.get(fileupload_name)
-        if fb_file and fb_file.filename:
-            if fb_file.filename.endswith('.zip'):
-                zip_folder_name = os.path.join(FB_FOLDER, os.path.splitext(fb_file.filename)[0])
-                os.makedirs(zip_folder_name, exist_ok=True)
-                with zipfile.ZipFile(fb_file, 'r') as zip_ref:
-                    zip_ref.extractall(zip_folder_name)
-                saved_files.append(fb_file.filename)
-
-    # Handle NSE file upload
-    nse_file = request.files.get('nse_file')
-    if nse_file and nse_file.filename:
-        nse_file_path = os.path.join(OHLC_FOLDER, nse_file.filename)
-        nse_file.save(nse_file_path)
-        saved_files.append(nse_file.filename)
-
-    # Handle BSE file upload
-    bse_file = request.files.get('bse_file')
-    if bse_file and bse_file.filename:
-        bse_file_path = os.path.join(OHLC_FOLDER, bse_file.filename)
-        bse_file.save(bse_file_path)
-        saved_files.append(bse_file.filename)
-        
-    # Handle IndexOHLC file upload
-    index_ohlc_file = request.files.get('IndexOHLCFile')
-    if index_ohlc_file and index_ohlc_file.filename:
-        index_ohlc_file_path = os.path.join(INDEX_OHLC_FOLDER, index_ohlc_file.filename)
-        index_ohlc_file.save(index_ohlc_file_path)
-        saved_files.append(index_ohlc_file.filename)
     
-    # Handle index-file1 file upload
-    index_file1 = request.files.get('ind_nifty500list.csv')
-    if index_file1 and index_file1.filename:
-        index_file1_path = os.path.join(INDEX_FILES_FOLDER, index_file1.filename)
-        # before saving the file, check filename is ind_nifty500list.csv
-        if index_file1.filename == 'ind_nifty500list.csv':
-            index_file1.save(index_file1_path)
-            saved_files.append(index_file1.filename)
-        else:
-            return jsonify({'message': 'Invalid file uploaded. Please upload ind_nifty500list.csv file.'})
-
-        
-    # Handle index-file2 file upload
-    index_file2 = request.files.get('BSE500_Index.csv')
-    if index_file2 and index_file2.filename:
-        index_file2_path = os.path.join(INDEX_FILES_FOLDER, index_file2.filename)
-        if index_file2.filename == 'BSE500_Index.csv':
-            index_file2.save(index_file2_path)
-            saved_files.append(index_file2.filename)
-        else:
-            return jsonify({'message': 'Invalid file uploaded. Please upload BSE500_Index.csv file.'})
-
-    # Handle missing files
-    if not saved_files:
-        return jsonify({'message': 'No files uploaded', 'files': []})
-
-    return jsonify({'message': 'Files uploaded successfully', 'files': saved_files})
-
-    
-
 @app.route('/')
 def index():
     db = DB_Helper()
@@ -182,74 +116,7 @@ def index():
     
     return render_template('index.html', last_insert_date=last_insert_date, last_report_generation_date=last_report_generation_date)
 
-@app.route('/industrymap')
-def industrymap():
-    db = DB_Helper()
-    conn = db.db_connect()
-    cur = conn.cursor()
-    
-    industry_mapping_sql = 'SELECT * FROM public."IndustryMapping";'
-    background_info_sql = 'SELECT * FROM public."BackgroundInfo";'
 
-    # Fetch data into DataFrames
-    industry_mapping_df = pd.read_sql_query(industry_mapping_sql, conn)
-    background_info_df = pd.read_sql_query(background_info_sql, conn)
-
-    # Close the cursor and connection
-    cur.close()
-    conn.close()
-
-    # Get the list of CompanyCode where IndustryCode is missing in IndustryMapping
-    missing_industry_codes = background_info_df[~background_info_df['IndustryCode'].isin(industry_mapping_df['IndustryCode'])]
-
-    missing_industry_code_list = missing_industry_codes['IndustryCode'].unique().tolist()
-
-    # Display the result
-    print("IndustryCodes that are missing:", len(missing_industry_code_list))
-    print("IndustryCodes that are missing:", missing_industry_code_list)
-    
-    return render_template('industrymap.html', missing_count = len(missing_industry_code_list), missing_codes = missing_industry_code_list)
-
-@app.route('/add_industry_mapping', methods=['POST'])
-def add_industry_mapping():
-    warnings.filterwarnings("ignore", category=UserWarning)
-
-    db = DB_Helper()
-    conn = db.db_connect()
-    cur = conn.cursor()
-
-    industry_code = request.form.get('IndustryCode')
-    industry_name = request.form.get('IndustryName')
-    industry = request.form.get('Industry')
-    code = request.form.get('Code')
-    subsector = request.form.get('SubSector')
-    subsector_code = request.form.get('SubSectorCode')
-    sector = request.form.get('Sector')
-    sector_code = request.form.get('SectorCode')
-    subindustry = request.form.get('SubIndustry')
-    subindustry_code = request.form.get('SubIndustryCode')
-
-    IndustryIndexName =  'INDUSTRY-'+ industry
-    SectorIndexName = 'SECTOR-'+ sector
-    SubSectorIndexName = "SUBSECTOR-"+ subsector
-    SubIndustryIndexName = 'SUBINDUSTRY-'+ subindustry 
-
-    sql = """INSERT INTO public."IndustryMapping"(
-        "IndustryCode", "IndustryName", "Industry", "Code", "SubSector", "SubSectorCode", "Sector", "SectorCode", \
-        "SubIndustry", "SubIndustryCode", "IndustryIndexName", "SubSectorIndexName", "SectorIndexName", "SubIndustryIndexName")
-        VALUES (%s,%s, %s, %s, %s,%s, %s, %s, %s, %s, %s,%s, %s,%s);"""
-
-    data = (industry_code, industry_name, industry, code, subsector, subsector_code, sector, sector_code, \
-        subindustry, subindustry_code, IndustryIndexName, SubSectorIndexName, SectorIndexName, SubIndustryIndexName)
-    
-    try:
-        cur.execute(sql, data)
-        conn.commit() 
-        return jsonify({'message': 'New IndustryMapping data added successfully.'})
-    except psycopg2.Error as e:
-        print(e)
-        conn.rollback()
-        return jsonify({'message': 'Error inserting data into the table.'})  
 
 @app.route('/process', methods=['POST'])
 def process():
@@ -267,6 +134,10 @@ def process():
     print(is_holiday)
     print(start_date, end_date)
     print(submenu)
+    
+    INDEX_MAPPING_sql = """select * from public."irs_index_mapping" """
+    INDEX_MAPPING = pd.read_sql_query(INDEX_MAPPING_sql, conn)
+    INDEX_MAPPING = INDEX_MAPPING.set_index('indexname')['indexmapping'].to_dict()
     
     try:
         start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -339,6 +210,7 @@ def process():
             bse_df = bse_df[['SC_CODE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
             
             index_df['TICKER'] = index_df['TICKER'].map(INDEX_MAPPING)
+            index_df = index_df[['TICKER', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOL']]
             
             # download all the files into txt_files folder
             nse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"NSE-{start_date}-{end_date}.txt")
@@ -375,6 +247,7 @@ def process():
             index_query = f"SELECT * FROM public.\"IndexHistory\" WHERE \"DATE\" >= '{start_date}' AND \"DATE\" <= '{end_date}' ORDER BY \"DATE\""
             index_df = sqlio.read_sql_query(index_query, conn)
             index_df['TICKER'] = index_df['TICKER'].map(INDEX_MAPPING)
+            index_df = index_df[['TICKER', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOL']]
             
             index_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"IRSOHLC-{start_date}-{end_date}.txt")
             index_df.to_csv(index_output_file, sep=',', index=False, header=False)
@@ -434,7 +307,7 @@ def process():
                 pass
             else:
                 table = table.split('.')[1].replace('\"', '')
-                download_csv(df, table, output_file)
+                download_csv(df, table, output_file, conn)
         return jsonify({'message': 'Download report processing successful'})
 
     else:
@@ -515,7 +388,7 @@ def delete_data(startdate, enddate, delete_variable, conn, cur):
         else:
             raise ValueError("Invalid delete variable")
 
-def download_csv(csv, report, filename):
+def download_csv(csv, report, filename, conn):
     dyn_list =  {'CompanyCode', 'NSECode', 'BSECode', 'CompanyName', 'ISIN'}
     columns_to_convert = {'EPS':['Q1 Sales', 'Q2 Sales'], 'ERS':['Q1 Sales', 'Q2 Sales'],'STANDALONE_ERS':['Q1 Sales', 'Q2 Sales'], 'STANDALONE_EPS':['Q1 Sales', 'Q2 Sales'], 'Consolidated_EPS':['Q1 Sales', 'Q2 Sales'],'Consolidated_ERS':['Q1 Sales', 'Q2 Sales'], 'EERS':['Q1 Sales', 'Q2 Sales'],'STANDALONE_EERS':['Q1 Sales', 'Q2 Sales'],'Consolidated_EERS':['Q1 Sales', 'Q2 Sales'], 'PRS':['Value', 'Value Average', 'Market Cap Value'], 'IRS':['OS', 'Volume'], "SMR": ('"Reports"."SMR"', '"SMRDate"'),
             "FRS-NAVCategoryAvg": [],
@@ -541,6 +414,10 @@ def download_csv(csv, report, filename):
         print("the report that is being downloaded is IRS and the indexmapping is going to take place")
         # index_mapping = {'INDUSTRY-Automobiles': 'AUTO-I', 'INDUSTRY-Automobile Components': 'AUTOCOMP-I', 'INDUSTRY-Specialty Retail': 'SPECRETAI-I', 'INDUSTRY-Consumer Staples Distribution & Retail': 'CONSTAPDIST-I', 'INDUSTRY-Broadline Retail': 'BROADRETAI-I', 'INDUSTRY-Food Products': 'FOODPROD-I', 'INDUSTRY-Beverages': 'BEVERAGE-I', 'INDUSTRY-Building Products': 'BUILDPROD-I', 'INDUSTRY-Construction & Engineering': 'CONSENGINE-I', 'INDUSTRY-Chemicals': 'CHEMICAL-I', 'INDUSTRY-Textiles, Apparel & Luxury Goods': 'TEXAPPLUX-I', 'INDUSTRY-Containers & Packaging': 'CONTAINPKG-I', 'INDUSTRY-Oil, Gas & Consumable Fuels': 'ONGCONFUEL-I', 'INDUSTRY-Household Products': 'HOUSEPROD-I', 'INDUSTRY-Personal Care Products': 'PERCARPROD-I', 'INDUSTRY-Pharmaceuticals': 'PHARMAC-I', 'INDUSTRY-Health Care Equipment & Supplies': 'HLTCAEQSUPP-I', 'INDUSTRY-Tobacco': 'TOBACCO-I', 'INDUSTRY-Household Durables': 'HOUSEDUR-I', 'INDUSTRY-Technology Hardware, Storage & Peripherals': 'TECHARDSOFTPER-I', 'INDUSTRY-Software': 'SOFTWARE-I', 'INDUSTRY-Electronic Equipment, Instruments & Components': 'ELEEQINSCMP-I', 'INDUSTRY-Commercial Services & Supplies': 'COMSERVSUP-I', 'INDUSTRY-Electrical Equipment': 'ELECEQUIP-I', 'INDUSTRY-IT Services': 'ITSERV-I', 'INDUSTRY-Machinery': 'MACHINERY-I', 'INDUSTRY-Insurance': 'INSURAN-I', 'INDUSTRY-Banks': 'BANKS-I', 'INDUSTRY-Financial Services': 'FINSERV-I', 'INDUSTRY-Capital Markets': 'CAPIMKT-I', 'INDUSTRY-Metals & Mining': 'METAMINE-I', 'INDUSTRY-Energy Equipment & Services': 'ENEQUSERV-I', 'INDUSTRY-Electric Utilities': 'ELECUTIL-I', 'INDUSTRY-Diversified Telecommunication Services': 'DIVTELECOMSERV-I', 'INDUSTRY-Independent Power and Renewable Electricity Producers': 'INDPOWRENEL-I', 'INDUSTRY-Paper & Forest Products': 'PAPFORPROD-I', 'INDUSTRY-Health Care Providers & Services': 'HLTCAPROSERV-I', 'INDUSTRY-Marine Transportation': 'MARITRA-I', 'INDUSTRY-Ground Transportation': 'GRNDTRAN-SI', 'INDUSTRY-Air Freight & Logistics': 'AIRFRELOGIS-I', 'INDUSTRY-Hotels, Restaurants & Leisure': 'HOTRESLEIS-I', 'INDUSTRY-Transportation Infrastructure': 'TRANSINFRA-I', 'INDUSTRY-Interactive Media & Services': 'INTMEDSERV-I', 'INDUSTRY-Diversified Consumer Services': 'DIVERCONSERV-I', 'INDUSTRY-Real Estate Management & Development': 'RESMGMDEV-I', 'INDUSTRY-Entertainment': 'ENTERTAIN-I', 'INDUSTRY-Retail REITs': 'RETIALREIT-I', 'INDUSTRY-Media': 'MEDIA-I', 'INDUSTRY-Gas Utilities': 'GASUTIL-I', 'INDUSTRY-Leisure Products': 'LEISPROD-I', 'SUBINDUSTRY-Auto - LCVs/HCVs': 'AUTLCVHCV-SI', 'SUBINDUSTRY-Auto - Cars & Jeeps': 'AUTCARJEE-SI', 'SUBINDUSTRY-Motorcycle Manufacturers': 'MOTORMFG-SI', 'SUBINDUSTRY-Automotive Parts & Equipment': 'AUTPEQUIP-SI', 'SUBINDUSTRY-Tires & Rubber': 'TIRERUB-SI', 'SUBINDUSTRY-Carbon Black': 'CARBLCK-SI', 'SUBINDUSTRY-Other Specialty Retail': 'OTHSPECRETL-SI', 'SUBINDUSTRY-Retail - Departmental Stores': 'RETDEPTSTO-SI', 'SUBINDUSTRY-Retail - Apparel': 'RETAPPAREL-SI', 'SUBINDUSTRY-Retail - Apparel/Accessories': 'RETAPPARACC-SI', 'SUBINDUSTRY-Trading': 'TRADING-SI', 'SUBINDUSTRY-Plantations': 'PLANTATIO-SI', 'SUBINDUSTRY-Distillers & Vintners': 'DISTILVINTN-SI', 'SUBINDUSTRY-Aqua & Horticulture': 'AQUAHORTIC-SI', 'SUBINDUSTRY-Edible Oils': 'EDIBLEOIL-SI', 'SUBINDUSTRY-Agricultural Products & Services': 'AGRIPROSER-SI', 'SUBINDUSTRY-Soft Drinks & Non-alcoholic Beverages': 'SODRINALCBEV-SI', 'SUBINDUSTRY-Packaged Foods & Meats': 'PKGFOODMEAT-SI', 'SUBINDUSTRY-Sugar': 'SUGAR-SI', 'SUBINDUSTRY-Cement & Products': 'CEMPROD-SI', 'SUBINDUSTRY-Tiles & Granites': 'TILEGRANI-SI', 'SUBINDUSTRY-Decoratives & Laminates': 'DECOLAMIN-SI', 'SUBINDUSTRY-Paints': 'PAINTS-SI', 'SUBINDUSTRY-Building Products': 'BUILDPROD-SI', 'SUBINDUSTRY-Construction & Engineering': 'CONSENGINE-SI', 'SUBINDUSTRY-Commodity Chemicals': 'COMMOCHEM-SI', 'SUBINDUSTRY-Specialty Chemicals': 'SPECHEM-SI', 'SUBINDUSTRY-Fertilizers & Agricultural Chemicals': 'FERAGRICHM-SI', 'SUBINDUSTRY-Diversified Chemicals': 'DIVERCHEM-SI', 'SUBINDUSTRY-Textiles': 'TEXTILES-SI', 'SUBINDUSTRY-Paper & Plastic Packaging Products & Materials': 'PPLPGPROMAT-SI', 'SUBINDUSTRY-Oil & Gas Refining & Marketing': 'ONGREFMKT-SI', 'SUBINDUSTRY-Household Products': 'HOUSEPROD-SI', 'SUBINDUSTRY-Personal Care Products': 'PERCARPROD-SI', 'SUBINDUSTRY-Pharmaceuticals': 'PHARMAC-SI', 'SUBINDUSTRY-Apparel, Accessories & Luxury Goods': 'APPACCLUX-SI', 'SUBINDUSTRY-Health Care Supplies': 'HLTCARESUPP-SI', 'SUBINDUSTRY-Tobacco': 'TOBACCO-SI', 'SUBINDUSTRY-Household Appliances': 'HOUSEAPPLI-SI', 'SUBINDUSTRY-Technology Hardware, Storage & Peripherals': 'TECHARDSOFTPER-SI', 'SUBINDUSTRY-Systems Software': 'SYSOFT-SI', 'SUBINDUSTRY-Electronic Equipment & Instruments': 'ELECEQUINS-SI', 'SUBINDUSTRY-Office Services & Supplies': 'OFFSERVSUPP-SI', 'SUBINDUSTRY-Consumer Electronics': 'CONSELEC-SI', 'SUBINDUSTRY-Electrical Components & Equipment': 'ELECOMEQU-SI', 'SUBINDUSTRY-Health Care Equipment': 'HLTCAREQU-SI', 'SUBINDUSTRY-Application Software': 'APPLICSOFT-SI', 'SUBINDUSTRY-IT Consulting & Other Services': 'ITCONSOTHSV-SI', 'SUBINDUSTRY-Research & Consulting Services': 'RESCONSERV-SI', 'SUBINDUSTRY-Industrial Machinery & Supplies & Components': 'INDMCHSUPCOM-SI', 'SUBINDUSTRY-Finance - Life Insurance': 'FINLIFINS-SI', 'SUBINDUSTRY-Private Banks': 'PVTBNK-SI', 'SUBINDUSTRY-Finance - Term Lending': 'FINTERLEND-SI', 'SUBINDUSTRY-Finance - Mutual Funds': 'FINMF-SI', 'SUBINDUSTRY-Investment Trusts': 'INVTRUST-SI', 'SUBINDUSTRY-Finance - Housing': 'FINHSG-SI', 'SUBINDUSTRY-Finance & Investments': 'FININVTS-SI', 'SUBINDUSTRY-PSU Banks': 'PSUBNK-SI', 'SUBINDUSTRY-Finance - Non Life Insurance': 'FINNONLIFINS-SI', 'SUBINDUSTRY-Reinsurance': 'REINSURE-SI', 'SUBINDUSTRY-Financial Exchanges & Data': 'FINEXCHDATA-SI', 'SUBINDUSTRY-Bearings': 'BEARINGS-SI', 'SUBINDUSTRY-Ferro Alloys': 'FERALLO-SI', 'SUBINDUSTRY-Fasteners': 'FASTENERS-SI', 'SUBINDUSTRY-Industrial Gases': 'INDUSGAS-SI', 'SUBINDUSTRY-Metal, Glass & Plastic Containers': 'METGLAPLACON-SI', 'SUBINDUSTRY-Aluminum': 'ALUMINIUM-SI', 'SUBINDUSTRY-Precious Metals & Minerals': 'PRECMETMIN-SI', 'SUBINDUSTRY-Diversified Metals & Mining': 'DIVERMETMIN-SI', 'SUBINDUSTRY-Oil & Gas Drilling': 'ONGDRILL-SI', 'SUBINDUSTRY-Electric Utilities': 'ELECUTILI-SI', 'SUBINDUSTRY-Telecommunications - Equipment': 'TELECOMEQU-SI', 'SUBINDUSTRY-Heavy Electrical Equipment': 'HVYELECEQUIP-SI', 'SUBINDUSTRY-Renewable Electricity': 'RENEWELEC-SI', 'SUBINDUSTRY-Copper': 'COPPER-SI', 'SUBINDUSTRY-Integrated Telecommunication Services': 'INTGTELCOSVC-SI', 'SUBINDUSTRY-Infrastructure - General': 'INFRAGEN-SI', 'SUBINDUSTRY-Steel': 'STEEL-SI', 'SUBINDUSTRY-Paper Products': 'PAPERPROD-SI1', 'SUBINDUSTRY-Livestock - Hatcheries/Poultry': 'LIVHATCHPOUL-SI', 'SUBINDUSTRY-Health Care Facilities': 'HLTCAREFACIL-SI', 'SUBINDUSTRY-Marine Transportation': 'MARITRA-SI', 'SUBINDUSTRY-Transport - Road': 'TRAROAD-SI', 'SUBINDUSTRY-Transport - Air': 'TRAAIR-SI', 'SUBINDUSTRY-Hotels, Resorts & Cruise Lines': 'HOTRESCRUIS-SI', 'SUBINDUSTRY-Marine Ports & Services': 'MARIPORSV-SI', 'SUBINDUSTRY-Diversified Support Services': 'DIVERSUPSER-SI', 'SUBINDUSTRY-Interactive Media & Services': 'INTMEDSERV-SI', 'SUBINDUSTRY-Fire Protection Equipment': 'FIRPROTEQU-SI', 'SUBINDUSTRY-LPG Bottling/Distribution': 'LPGBOTDIST-SI', 'SUBINDUSTRY-Commercial Printing': 'COMMERPRINT-SI', 'SUBINDUSTRY-Agricultural & Farm Machinery': 'AGRIFARMCH-SI', 'SUBINDUSTRY-Diversified Financial Services': 'DIVERFINSER-SI', 'SUBINDUSTRY-E-Commerce - Retail': 'ECOMRET-SI', 'SUBINDUSTRY-Education Services': 'EDUSERV-SI', 'SUBINDUSTRY-Real Estate Development': 'REALSTATDEV-SI', 'SUBINDUSTRY-Waste Management': 'WASTEMAN-SI', 'SUBINDUSTRY-Multi-Sector Holdings': 'MULTSECTHLD-SI', 'SUBINDUSTRY-Fintech': 'FINTEC-SI', 'SUBINDUSTRY-Health Care Services': 'HLTCARESERV-SI', 'SUBINDUSTRY-Digital Entertainment': 'DIGIENTER-SI', 'SUBINDUSTRY-Leisure Facilities': 'LEISFACIL-SI', 'SUBINDUSTRY-Dairy': 'DAIRY-SI', 'SUBINDUSTRY-Marine Foods': 'MARIFOOD-SI', 'SUBINDUSTRY-Road Infrastructure': 'ROADINFRA-SI', 'SUBINDUSTRY-Retail REITs': 'RETAILREIT-SI', 'SUBINDUSTRY-Specialized Finance': 'SPECIFIN-SI', 'SUBINDUSTRY-Railway Wagons and Wans': 'RAILWAGWAN-SI', 'SUBINDUSTRY-Footwear': 'FOOTWEAR-SI', 'SUBINDUSTRY-Advertising': 'ADVERT-SI', 'SUBINDUSTRY-Construction Machinery & Heavy Transportation Equipment': 'CONMCHVYTRN-SI', 'SUBINDUSTRY-Home Furnishings': 'HOMFURNIS-SI', 'SUBINDUSTRY-Gas Utilities': 'GASUTIL-SI', 'SUBINDUSTRY-Insurance Brokers': 'INSURBROK-SI', 'SUBINDUSTRY-Leisure Products': 'LEISPROD-SI', 'SUBINDUSTRY-Micro Finance Institutions': 'MICROFININS-SI', 'SUBINDUSTRY-Oil & Gas Equipment & Services': 'ONGEQUSERV-SI', 'SUBINDUSTRY-Diversified Capital Markets': 'DIVERCAPMKT-SI', 'SECTOR-Consumer Discretionary': 'CONSDISC-S', 'SECTOR-Consumer Staples': 'CONSTAPL-S', 'SECTOR-Industrials': 'INDUSTRIAL-S', 'SECTOR-Materials': 'MATERIALS-S', 'SECTOR-Energy': 'ENERGY-S', 'SECTOR-Health Care': 'HLTHCARE-S', 'SECTOR-Information Technology': 'INFOTEC-S', 'SECTOR-Financials': 'FINANCIALS-S', 'SECTOR-Utilities': 'UTILITIES-S', 'SECTOR-Communication Services': 'COMMSERV-S', 'SECTOR-Real Estate': 'REALESTATE-S', 'SUBSECTOR-Automobiles & Components': 'AUTOCOMP-SS', 'SUBSECTOR-Consumer Discretionary Distribution & Retail': 'CONSDDRETA-SS', 'SUBSECTOR-Consumer Staples Distribution & Retail': 'CONSTAPDISRE-SS', 'SUBSECTOR-Food, Beverage & Tobacco': 'FOOBEVTOBA-SS', 'SUBSECTOR-Capital Goods': 'CAPIGOOD-SS', 'SUBSECTOR-Materials': 'MATERIAL-SS', 'SUBSECTOR-Consumer Durables & Apparel': 'CONSDURAPP-SS', 'SUBSECTOR-Energy': 'ENERGY-SS', 'SUBSECTOR-Household & Personal Products': 'HOUSPERS-SS', 'SUBSECTOR-Pharmaceuticals, Biotechnology & Life Sciences': 'PHARMBIOLIFS-SS', 'SUBSECTOR-Health Care Equipment & Services': 'HLTCAREQUSV-SS', 'SUBSECTOR-Technology Hardware & Equipment': 'TECHARDEQUI-SS', 'SUBSECTOR-Software & Services': 'SOFTSERV-SS', 'SUBSECTOR-Commercial & Professional Services': 'COMPRFSERV-SS', 'SUBSECTOR-Insurance': 'INSURANCE-SS', 'SUBSECTOR-Banks': 'BANKS-SS', 'SUBSECTOR-Financial Services': 'FINSERV-SS', 'SUBSECTOR-Utilities': 'UTILITIES-SS', 'SUBSECTOR-Telecommunication Services': 'TELECOSERV-SS', 'SUBSECTOR-Transportation': 'TRANSPORT-SS', 'SUBSECTOR-Consumer Services': 'CONSERV-SS', 'SUBSECTOR-Media & Entertainment': 'MEDIAENT-SS', 'SUBSECTOR-Real Estate Management & Development': 'RESMGMDEV-SS', 'SUBSECTOR-Equity Real Estate Investment Trusts (REITs)': 'EQREITS-SS'}
         # map the index_mapping to the IndexName column
+    
+        INDEX_MAPPING_sql = """select * from public."irs_index_mapping" """
+        INDEX_MAPPING = pd.read_sql_query(INDEX_MAPPING_sql, conn)
+        INDEX_MAPPING = INDEX_MAPPING.set_index('indexname')['indexmapping'].to_dict()
         csv['IndexName'] = csv['IndexName'].map(INDEX_MAPPING)
         
     try:        
