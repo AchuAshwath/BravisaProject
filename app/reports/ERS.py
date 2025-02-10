@@ -1474,6 +1474,7 @@ class ERS:
             conn.commit()
             f.close()
 
+        os.remove(exportfilename)
 
     def get_eps_list(self, conn, today):
         btt_back = datetime.date(today.year, today.month, 1).strftime("%Y-%m-%d")
