@@ -193,71 +193,115 @@ def process():
             # fetch NSE for start date and end date with TIMESTAMP as the date column
             nse_query = f"SELECT * FROM public.\"NSE\" WHERE \"TIMESTAMP\" >= '{start_date}' AND \"TIMESTAMP\" <= '{end_date}' ORDER BY \"TIMESTAMP\""
             nse_df = sqlio.read_sql_query(nse_query, conn)
-            
+            nse_df['TIMESTAMP'] = pd.to_datetime(nse_df['TIMESTAMP'])
+
             #fetch  BSE for start date and end date with TRADING_DATE as date column
             bse_query = f"SELECT * FROM public.\"BSE\" WHERE \"TRADING_DATE\" >= '{start_date}' AND \"TRADING_DATE\" <= '{end_date}' ORDER BY \"TRADING_DATE\""
             bse_df = sqlio.read_sql_query(bse_query, conn)
-            
+            bse_df['TRADING_DATE'] = pd.to_datetime(bse_df['TRADING_DATE'])
+            # remove decimal values from SC_CODE
+            bse_df['SC_CODE'] = bse_df['SC_CODE'].astype(int)
+
             # fetch IndexHistory for start date and end date with DATE as date column
             index_query = f"SELECT * FROM public.\"IndexHistory\" WHERE \"DATE\" >= '{start_date}' AND \"DATE\" <= '{end_date}' ORDER BY \"DATE\""
             index_df = sqlio.read_sql_query(index_query, conn)
-            
+            index_df['DATE'] = pd.to_datetime(index_df['DATE'])
+
             # fetch mf_ohlc for start date and end date with date as date column  
             mf_query = f"SELECT * FROM public.\"mf_ohlc\" WHERE \"date\" >= '{start_date}' AND \"date\" <= '{end_date}' ORDER BY \"date\""
             mf_df = sqlio.read_sql_query(mf_query, conn)
-            
-            nse_df = nse_df[['SYMBOL', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'TOTTRDQTY']]
-            bse_df = bse_df[['SC_CODE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
+            mf_df['date'] = pd.to_datetime(mf_df['date'])
+
+            # arrange columns in the order required
+            nse_df = nse_df[['SYMBOL','TIMESTAMP', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'TOTTRDQTY']]
+            bse_df = bse_df[['SC_CODE','TRADING_DATE' , 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
+            mf_df = mf_df[['btt_scheme_code', 'date', 'open', 'high', 'low', 'close', 'volume']]
             
             index_df['TICKER'] = index_df['TICKER'].map(INDEX_MAPPING)
-            index_df = index_df[['TICKER', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOL']]
+            index_df = index_df[['TICKER', 'DATE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOL']]
             
             # download all the files into txt_files folder
+            
             nse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"NSE-{start_date}-{end_date}.txt")
+            nse_df = nse_df.dropna()
+            # round off the values to 2 decimal places
+            nse_df = nse_df.round(2)
+            #format date column to be yyyymmdd without - and :
+            nse_df['TIMESTAMP'] = nse_df['TIMESTAMP'].dt.strftime('%Y%m%d')
             nse_df.to_csv(nse_output_file, sep=',', index=False, header=False)
             
             bse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"BSE-{start_date}-{end_date}.txt")
+            # drop rows with null values
+            bse_df = bse_df.dropna()
+            bse_df = bse_df.round(2)
+            bse_df['TRADING_DATE'] = bse_df['TRADING_DATE'].dt.strftime('%Y%m%d')
             bse_df.to_csv(bse_output_file, sep=',', index=False, header=False)
             
             index_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"IRSOHLC-{start_date}-{end_date}.txt")
+            # drop rows with null values
+            index_df = index_df.dropna()
+            index_df = index_df.round(2)
+            index_df['DATE'] = index_df['DATE'].dt.strftime('%Y%m%d')
             index_df.to_csv(index_output_file, sep=',', index=False, header=False)
             
             mf_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"MFOHLC-{start_date}-{end_date}.txt")
+            # drop rows with null values
+            mf_df = mf_df.dropna()
+            mf_df = mf_df.round(2)
+            mf_df['date'] = mf_df['date'].dt.strftime('%Y%m%d')
             mf_df.to_csv(mf_output_file, sep=',', index=False, header=False)
                     
         elif submenu=="NSE":
             # fetch NSE for start date and end date with TIMESTAMP as the date column
             nse_query = f"SELECT * FROM public.\"NSE\" WHERE \"TIMESTAMP\" >= '{start_date}' AND \"TIMESTAMP\" <= '{end_date}' ORDER BY \"TIMESTAMP\""
             nse_df = sqlio.read_sql_query(nse_query, conn)
-            nse_df = nse_df[['SYMBOL', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'TOTTRDQTY']]
+            nse_df['TIMESTAMP'] = pd.to_datetime(nse_df['TIMESTAMP'])
+            nse_df = nse_df[['SYMBOL','TIMESTAMP', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'TOTTRDQTY']]
+            
             
             nse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"NSE-{start_date}-{end_date}.txt")
+            nse_df = nse_df.dropna()
+            nse_df = nse_df.round(2)
+            nse_df['TIMESTAMP'] = nse_df['TIMESTAMP'].dt.strftime('%Y%m%d')
             nse_df.to_csv(nse_output_file, sep=',', index=False, header=False)
         elif submenu=="BSE":
             #fetch  BSE for start date and end date with TRADING_DATE as date column
             bse_query = f"SELECT * FROM public.\"BSE\" WHERE \"TRADING_DATE\" >= '{start_date}' AND \"TRADING_DATE\" <= '{end_date}' ORDER BY \"TRADING_DATE\""
             bse_df = sqlio.read_sql_query(bse_query, conn)
-            bse_df = bse_df[['SC_CODE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
+            bse_df['TRADING_DATE'] = pd.to_datetime(bse_df['TRADING_DATE'])
+            bse_df = bse_df[['SC_CODE','TRADING_DATE' , 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'NO_OF_SHRS']]
             
             bse_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"BSE-{start_date}-{end_date}.txt")
+            bse_df = bse_df.dropna()
+            bse_df = bse_df.round(2)
+            bse_df['TRADING_DATE'] = bse_df['TRADING_DATE'].dt.strftime('%Y%m%d')
             bse_df.to_csv(bse_output_file, sep=',', index=False, header=False)
             
         elif submenu=="IRSOHLC":
             # fetch IndexHistory for start date and end date with DATE as date column
             index_query = f"SELECT * FROM public.\"IndexHistory\" WHERE \"DATE\" >= '{start_date}' AND \"DATE\" <= '{end_date}' ORDER BY \"DATE\""
             index_df = sqlio.read_sql_query(index_query, conn)
+            index_df['DATE'] = pd.to_datetime(index_df['DATE'])
             index_df['TICKER'] = index_df['TICKER'].map(INDEX_MAPPING)
-            index_df = index_df[['TICKER', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOL']]
+            index_df = index_df[['TICKER', 'DATE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOL']]
             
             index_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"IRSOHLC-{start_date}-{end_date}.txt")
+            index_df = index_df.dropna()
+            index_df = index_df.round(2)
+            index_df['DATE'] = index_df['DATE'].dt.strftime('%Y%m%d')
             index_df.to_csv(index_output_file, sep=',', index=False, header=False)
             
         elif submenu=="MFOHLC":
             # fetch mf_ohlc for start date and end date with date as date column
             mf_query = f"SELECT * FROM public.\"mf_ohlc\" WHERE \"date\" >= '{start_date}' AND \"date\" <= '{end_date}' ORDER BY \"date\""
             mf_df = sqlio.read_sql_query(mf_query, conn)
+            mf_df['date'] = pd.to_datetime(mf_df['date'])
+            mf_df = mf_df[['btt_scheme_code', 'date', 'open', 'high', 'low', 'close', 'volume']]
             
             mf_output_file = os.path.join(cwd, "DownloadedFiles", "txt_files", f"MFOHLC-{start_date}-{end_date}.txt")
+            mf_df = mf_df.dropna()
+            mf_df = mf_df.round(2)
+            mf_df['date'] = mf_df['date'].dt.strftime('%Y%m%d')
             mf_df.to_csv(mf_output_file, sep=',', index=False, header=False)
         else:
             return jsonify({'message': 'Invalid submenu value'})
