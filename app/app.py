@@ -488,8 +488,21 @@ if __name__ == "__main__":
     webview.create_window("Bravisa Temple Tree", "http://127.0.0.1:5000", min_size=(950,800))
     webview.start()
 
+# import multiprocessing
 
+# def start_webview():
+#     webview.create_window("Bravisa Temple Tree", "http://127.0.0.1:5000", min_size=(950, 800))
+#     webview.start()
 
-    
+# if __name__ == "__main__":
+#     # Start the webview in a separate process
+#     webview_process = multiprocessing.Process(target=start_webview)
+#     webview_process.start()
+
+#     # Start the Flask app in the main process
+#     app.run(host='127.0.0.1', port=5000, debug=True, use_reloader=True)
+
+#     # Ensure the webview process is terminated when the Flask app is closed
+#     webview_process.join()
 
 

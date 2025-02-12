@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Database Report Dashboard</title>
 
-    <!-- Bootstrap CSS (CDN) -->
+    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 
     <style>
@@ -15,6 +15,7 @@
         }
         .container {
             margin-top: 20px;
+            max-width: 90%;
         }
         .navbar {
             background-color: #1b9cfc;
@@ -28,76 +29,116 @@
             border: none;
             padding: 10px;
             border-radius: 8px;
+            cursor: pointer;
         }
         .button:hover {
             background-color: #00bcff;
         }
-        .hidden {
-            display: none;
+        .table-container {
+            max-height: 400px;  /* Limit height */
+            overflow: auto;  /* Enable scrolling */
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 10px;
+            background: white;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+        th {
+            background-color: #1b9cfc;
+            color: white;
         }
     </style>
 </head>
 <body>
 
-    <!-- Navbar with Back Button -->
+    <!-- Navbar -->
     <nav class="navbar navbar-expand-lg">
         <div class="container-fluid">
             <a class="navbar-brand text-white" href="/dash">← Back to Dashboards</a>
         </div>
     </nav>
 
-    <div class="container">
-        <h2 class="text-center mt-3">Database Report Dashboard</h2>
+    <div class="container mt-5">
+        <!-- Display Flashed Messages -->
+        {% if message %}
+            <div id="notification" class="alert {% if '✅' in message %}alert-success{% else %}alert-danger{% endif %} text-center">
+                {{ message }}
+            </div>
+        {% endif %}
+        <h2 class="text-center">Download Dashboard</h2>
 
-        <!-- Input Section -->
-        <form method="GET" action="{{ url_for('dash_reports.dash_reports_page') }}">
+        <!-- Form -->
+        <!-- Form -->
+        <form method="POST" action="/dash-reports">
             <div class="row mt-4">
                 <!-- Schema Selection -->
                 <div class="col-md-4">
-                    <label for="schema-select">Select Schema</label>
-                    <select id="schema-select" name="schema" class="form-control" onchange="this.form.submit()">
+                    <label for="schema-select">Schema</label>
+                    <select id="schema-select" name="schema" class="form-control" required>
                         <option value="" disabled selected>Choose a Schema</option>
                         {% for schema in schemas %}
-                            <option value="{{ schema }}" {% if schema == selected_schema %}selected{% endif %}>{{ schema }}</option>
+                            <option value="{{ schema }}" {% if selected_schema == schema %}selected{% endif %}>{{ schema }}</option>
                         {% endfor %}
                     </select>
                 </div>
 
-                <!-- Table Selection (Changes based on Schema) -->
+                <!-- Table Selection -->
                 <div class="col-md-4">
-                    <label for="table-select">Select Table</label>
-                    <select id="table-select" name="table" class="form-control selectpicker" data-live-search="true" {% if not tables %}disabled{% endif %}>
+                    <label for="table-select">Table</label>
+                    <select id="table-select" name="table" class="form-control" required>
                         <option value="" disabled selected>Choose a Table</option>
-                        {% for table in tables %}
-                            <option value="{{ table }}">{{ table }}</option>
-                        {% endfor %}
+                        {% if selected_table %}
+                            <option value="{{ selected_table }}" selected>{{ selected_table }}</option>
+                        {% endif %}
                     </select>
                 </div>
 
-                <!-- Start Date -->
-                <div class="col-md-3">
+                <!-- Column Selection -->
+                <div class="col-md-4">
+                    <label for="column-select">Date Column</label>
+                    <select id="column-select" name="column" class="form-control" required>
+                        <option value="" disabled selected>Choose a Column</option>
+                        {% if selected_column %}
+                            <option value="{{ selected_column }}" selected>{{ selected_column }}</option>
+                        {% endif %}
+                    </select>
+                </div>
+            </div>
+
+            <!-- Date Range -->
+            <div class="row mt-3">
+                <div class="col-md-6">
                     <label for="start-date">Start Date</label>
-                    <input type="date" id="start-date" name="start_date" class="form-control">
+                    <input type="date" id="start-date" name="start_date" class="form-control" value="{{ start_date }}" required>
                 </div>
-
-                <!-- End Date (Initially Disabled) -->
-                <div class="col-md-3">
+                <div class="col-md-6">
                     <label for="end-date">End Date</label>
-                    <input type="date" id="end-date" name="end_date" class="form-control" disabled>
+                    <input type="date" id="end-date" name="end_date" class="form-control" value="{{ end_date }}" required>
                 </div>
             </div>
 
-            <!-- Preview Button -->
-            <div class="mt-4 text-center">
-                <button type="submit" class="btn btn-primary">Show Preview</button>
+            <!-- Buttons -->
+            <div class="text-center mt-4">
+                <button type="submit" class="btn btn-primary button " name="action" value="preview">Show Preview</button>
+                <button type="submit" class="btn btn-success" name="action" value="download">Download CSV</button>
             </div>
-
         </form>
-            <!-- Preview Section -->
-            {% if preview_data %}
-            <div class="mt-5">
-                <h4>Table Preview</h4>
-                <table class="table table-bordered">
+
+
+        <!-- Preview Table -->
+        {% if preview_data %}
+        <div class="mt-5">
+            <h4>Table Preview</h4>
+            <div class="table-container">
+                <table class="table">
                     <thead>
                         <tr>
                             {% for col in preview_data.columns %}
@@ -115,24 +156,59 @@
                         {% endfor %}
                     </tbody>
                 </table>
-
-                <!-- Download Button -->
-                <div class="mt-3 text-center">
-                    <a href="{{ url_for('dash_reports.download_csv', schema=selected_schema, table=selected_table, start_date=start_date, end_date=end_date) }}" 
-                    class="btn btn-success">Download CSV</a>
-                </div>
             </div>
-            {% endif %}
 
-    <!-- JavaScript -->
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Minimal JavaScript for sending form data to Flask -->
     <script>
+        document.getElementById("schema-select").addEventListener("change", function () {
+            let schema = this.value;
+            fetch(`/get_tables?schema=${schema}`)
+                .then(response => response.json())
+                .then(data => {
+                    let tableSelect = document.getElementById("table-select");
+                    tableSelect.innerHTML = '<option value="" disabled selected>Choose a Table</option>';
+                    data.tables.forEach(table => {
+                        tableSelect.innerHTML += `<option value="${table}">${table}</option>`;
+                    });
+                });
+        });
+
+        document.getElementById("table-select").addEventListener("change", function () {
+            let schema = document.getElementById("schema-select").value;
+            let table = this.value;
+            fetch(`/get_columns?schema=${schema}&table=${table}`)
+                .then(response => response.json())
+                .then(data => {
+                    let columnSelect = document.getElementById("column-select");
+                    columnSelect.innerHTML = '<option value="" disabled selected>Choose a Column</option>';
+                    data.columns.forEach(column => {
+                        columnSelect.innerHTML += `<option value="${column}">${column}</option>`;
+                    });
+                });
+        });
+        
+
         document.getElementById("start-date").addEventListener("change", function () {
             let endDate = document.getElementById("end-date");
-            endDate.value = this.value;
-            endDate.disabled = false;
+            endDate.value = this.value;  // Set end date same as start date
+            endDate.disabled = false;   // Enable end date field
         });
+        // Hide notification after 3 seconds
+        setTimeout(function() {
+            let notification = document.getElementById("notification");
+            if (notification) {
+                notification.style.transition = "opacity 1s";
+                notification.style.opacity = "0";
+                setTimeout(function() {
+                    notification.style.display = "none";
+                }, 1000); // 1 second for fade out
+            }
+        }, 3000);
     </script>
-
-
+    
 </body>
 </html>

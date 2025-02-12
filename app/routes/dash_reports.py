@@ -2,108 +2,123 @@ from flask import Blueprint, render_template, request, jsonify, send_file
 from utils.db_helper import DB_Helper
 import pandas as pd
 import os
+# Path to Downloads folder
+DOWNLOADS_FOLDER = os.path.join(os.path.expanduser("~"), "Downloads")
 
-# Create Blueprint
 dash_reports = Blueprint('dash_reports', __name__, template_folder="../templates")
 db = DB_Helper()
 
-# Route to render the dashboard reports page with schema list
-@dash_reports.route('/dash-reports', methods=['GET'])
+def download_csv_direct(schema, table, column, start_date, end_date):
+    """ Generates CSV and saves it to the Downloads folder """
+    try:
+        conn = db.db_connect()
+        sql = f"""SELECT * FROM "{schema}"."{table}" WHERE "{column}" BETWEEN '{start_date}' AND '{end_date}'"""
+        df = pd.read_sql_query(sql, conn)
+
+        # File path in Downloads folder
+        file_path = os.path.join(DOWNLOADS_FOLDER, f"{table}_{start_date}-{end_date}.csv")
+        df.to_csv(file_path, index=False)
+
+        print(f"📌 CSV Generated: {file_path}")
+        return f"✅ File successfully downloaded to {file_path}"
+
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+        return f"❌ Error generating CSV: {str(e)}"
+
+@dash_reports.route('/dash-reports', methods=['GET', 'POST'])
 def dash_reports_page():
     try:
         conn = db.db_connect()
-        cur = conn.cursor()
 
-        # Fetch all schema names excluding system schemas
+        # Fetch schema names
         schema_sql = """
-            SELECT schema_name 
-            FROM information_schema.schemata 
+            SELECT schema_name FROM information_schema.schemata 
             WHERE schema_name NOT LIKE 'pg_%' 
             AND schema_name != 'information_schema'
         """
         schema_list = pd.read_sql_query(schema_sql, conn)['schema_name'].tolist()
+        message = None
+        if request.method == "POST":
+            schema = request.form.get('schema')
+            table = request.form.get('table')
+            column = request.form.get('column')
+            start_date = request.form.get('start_date')
+            end_date = request.form.get('end_date')
+            action = request.form.get('action')  # 'preview' or 'download'
 
-        cur.close()
-        conn.close()
+            print(f"📌 Received Request: {action}, Schema={schema}, Table={table}, Column={column}, Start={start_date}, End={end_date}")
 
-        # Check if a schema is selected
-        selected_schema = request.args.get('schema')
-        tables_list = []
+            # Handle Download CSV Action
+            if action == "download":
+                message = download_csv_direct(schema, table, column, start_date, end_date)
+                # notify user that file is downloaded
 
-        if selected_schema:
-            conn = db.db_connect()
-            cur = conn.cursor()
 
-            # Fetch tables for the selected schema
-            tables_sql = f"""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = '{selected_schema}'
+            # Fetch preview data
+            preview_sql = f"""
+                SELECT * FROM "{schema}"."{table}"
+                WHERE "{column}" BETWEEN '{start_date}' AND '{end_date}'
+                LIMIT 10
             """
-            tables_list = pd.read_sql_query(tables_sql, conn)['table_name'].tolist()
+            preview_data = pd.read_sql_query(preview_sql, conn)
 
-            cur.close()
-            conn.close()
+            return render_template("dash-reports.html", 
+                schemas=schema_list,
+                preview_data={"columns": preview_data.columns.tolist(), "rows": preview_data.values.tolist()},
+                selected_schema=schema,
+                selected_table=table,
+                selected_column=column,
+                start_date=start_date,
+                end_date=end_date,
+                message=message
+            )
 
-        return render_template('dash-reports.html', schemas=schema_list, selected_schema=selected_schema, tables=tables_list)
-
-    except Exception as e:
-        return render_template('dash-reports.html', schemas=[], tables=[], error=str(e))
-
-# Route to fetch table preview
-@dash_reports.route('/get_table_preview', methods=['GET'])
-def get_table_preview():
-    try:
-        schema = request.args.get('schema', 'public')
-        table = request.args.get('table')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
-
-        if not schema or not table or not start_date or not end_date:
-            return render_template('dash-reports.html', preview_data=None, error="Missing input parameters.")
-
-        conn = db.db_connect()
-        query = f'SELECT * FROM "{schema}"."{table}" WHERE date_column BETWEEN \'{start_date}\' AND \'{end_date}\' LIMIT 10'
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-
-        preview_data = {
-            "columns": df.columns.tolist(),
-            "rows": df.values.tolist()
-        }
-
-        return render_template('dash-reports.html', preview_data=preview_data, selected_schema=schema, selected_table=table, start_date=start_date, end_date=end_date)
+        return render_template("dash-reports.html", schemas=schema_list)
 
     except Exception as e:
-        return render_template('dash-reports.html', preview_data=None, error=str(e))
+        return render_template("dash-reports.html", schemas=[], error=str(e))
 
 
-# ✅ **API to Download CSV**
-@dash_reports.route('/download_csv', methods=['GET'])
+@dash_reports.route('/get_tables')
+def get_tables():
+    schema = request.args.get('schema')
+    conn = db.db_connect()
+
+    tables_sql = f"""
+        SELECT table_name FROM information_schema.tables 
+        WHERE table_schema = '{schema}'
+    """
+    tables = pd.read_sql_query(tables_sql, conn)['table_name'].tolist()
+    return jsonify({"tables": tables})
+
+@dash_reports.route('/get_columns')
+def get_columns():
+    schema = request.args.get('schema')
+    table = request.args.get('table')
+    conn = db.db_connect()
+
+    columns_sql = f"""
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_schema = '{schema}' AND table_name = '{table}'
+        AND (data_type = 'date'
+        OR data_type = 'timestamp without time zone')
+    """
+    columns = pd.read_sql_query(columns_sql, conn)['column_name'].tolist()
+    return jsonify({"columns": columns})
+
+@dash_reports.route('/download_csv')
 def download_csv():
-    try:
-        schema = request.args.get('schema', 'public')
-        table = request.args.get('table')
-        start_date = request.args.get('start_date')
-        end_date = request.args.get('end_date')
+    schema = request.args.get('schema')
+    table = request.args.get('table')
+    start_date = request.args.get('start_date')
+    column = request.args.get('column')
+    end_date = request.args.get('end_date')
 
-        if not table:
-            return "Missing table parameter", 400
+    conn = db.db_connect()
+    sql = f"""SELECT * FROM "{schema}"."{table}" WHERE "{column}" BETWEEN '{start_date}' AND '{end_date}'"""
+    df = pd.read_sql_query(sql, conn)
 
-        conn = db.db_connect()
-        query = f'SELECT * FROM "{schema}"."{table}"'
-
-        if start_date and end_date:
-            query += f" WHERE date_column BETWEEN '{start_date}' AND '{end_date}'"
-
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-
-        # Save CSV
-        csv_filename = f"{schema}_{table}.csv"
-        df.to_csv(csv_filename, index=False)
-
-        return send_file(csv_filename, as_attachment=True)
-
-    except Exception as e:
-        return str(e), 500
+    file_path = os.path.join("downloads", f"{table}_report.csv")
+    df.to_csv(file_path, index=False)
+    return send_file(file_path, as_attachment=True)
