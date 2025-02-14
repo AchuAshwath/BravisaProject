@@ -31,7 +31,6 @@ from routes.dash_display import dash_display
 from routes.dash_summary import dash_summary
 from routes.industrymapping import industry_mapping
 from routes.uploadfile import uploadfile
-from routes.scheme_code import scheme_code  
 # from flask_bootstrap import Bootstrap5
 
 
@@ -93,7 +92,6 @@ app.register_blueprint(dash_display)
 app.register_blueprint(dash_summary)
 app.register_blueprint(industry_mapping)
 app.register_blueprint(uploadfile)
-app.register_blueprint(scheme_code)
 
 @app.route('/dash')
 def dashboard():

@@ -61,11 +61,29 @@ def industrymap():
     print("missing index names : ",len(missing_index_names))
     print(missing_index_names)
     
+    # get all distinct shemecodes from SchemeMaster
+    scheme_master_sql = 'SELECT DISTINCT "SchemeCode" FROM public."SchemeMaster";'
+    scheme_master_df = pd.read_sql_query(scheme_master_sql, conn)
+    
+    # get all schemecodes from mf_category_mapping
+    mf_category_mapping_sql = 'SELECT DISTINCT "scheme_code" FROM public."mf_category_mapping";'
+    mf_category_mapping_df = pd.read_sql_query(mf_category_mapping_sql, conn)
+    
+    # get all schemecodes from ignore_scheme_master
+    ignore_scheme_master_sql = 'SELECT DISTINCT "scheme_code" FROM public."ignore_scheme_master";'
+    ignore_scheme_master_df = pd.read_sql_query(ignore_scheme_master_sql, conn)
+    
+    # remove the schemecodes from scheme_master_df that are in mf_category_mapping_df and ignore_scheme_master_df
+    scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(mf_category_mapping_df['scheme_code'])]
+    scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(ignore_scheme_master_df['scheme_code'])]
+    
+    print("scheme_master_df : ", len(scheme_master_df))
+    
     # Close the cursor and connection
     cur.close()
     conn.close()
     
-    return render_template('industrymap.html', missing_count = len(missing_industry_code_list), missing_codes = missing_industry_code_list, missing_index_names_count = len(missing_index_names), missing_index_names = missing_index_names)
+    return render_template('industrymap.html', missing_count = len(missing_industry_code_list), missing_index_names_count = len(missing_index_names), missing_index_names = missing_index_names, scheme_master_new_count = len(scheme_master_df))
 
 @industry_mapping.route('/add_industry_mapping', methods=['POST'])
 def add_industry_mapping():

@@ -251,22 +251,22 @@
       </div>
       <div class="container margin-bottom">
         <!-- <h1>Industry Map</h1> -->
-        <p class="font">Number of missing IndustryCodes: {{ missing_count }}</p>
-        <button type="button" class="collapsible">List of Missing IndustryCodes</button>
+        <div class="flex-center space-between margin-bottom">
+          <p class="font">Number of missing IndustryCodes: {{ missing_count }}</p>
+          <button type="button" class="button font">get list</button>
+        </div>
+        <!-- <button type="button" class="collapsible">List of Missing IndustryCodes</button>
         <ul class="missing-list">
             {% for code in missing_codes %}
                 <li>{{ code }}</li>
             {% endfor %}
-        </ul>
+        </ul> -->
       </div>
-      <p class="font">Number of missing SchemeCodes: {{ missing_scheme_count }}</p>
-      <button type="button" class="collapsible margin-bottom">List of Missing SchemeCodes</button>
-        <ul class="missing-list">
-            {% for code in missing_scheme_codes %}
-                <li>{{ code }}</li>
-            {% endfor %}
-        </ul>
+      <div class="flex-center space-between margin-bottom">
+        <p class="font">New SchemeCodes in SchemeMaster : {{ scheme_master_new_count }}</p>
+        <button type="button" class="button font">get list</button>
       </div>
+
       <div class="margin-bottom" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
             <label for="file">IndustryMapping :</label>
