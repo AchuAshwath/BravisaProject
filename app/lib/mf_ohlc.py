@@ -95,6 +95,14 @@ class MFOHLC():
         # sql = 'SELECT "Date", "1 Year Average", "btt_scheme_category" FROM "Reports"."FRS-NAVCategoryAvg" \
                         #    WHERE "Date"  between  \''+str(self.start_date)+'\' and \''+str(self.end_date)+'\' ;'
         frs_nav_cat = sqlio.read_sql_query(sql, con=conn)
+
+        avg_category_mapping_sql = """
+            SELECT * FROM public.avg_category_mapping;
+            """
+        avg_category_mapping = sqlio.read_sql_query(avg_category_mapping_sql, con=conn)
+
+        #create a dictionary of the avg_category_mapping dataframe where keys are scheme_name and values are btt_scheme_code
+        avg_category_mapping_dict = dict(zip(avg_category_mapping['scheme_name'], avg_category_mapping['btt_scheme_code']))
         
         frs_nav_cat['open'] = frs_nav_cat['1 Year Average']
         frs_nav_cat['high'] = frs_nav_cat['1 Year Average']
@@ -102,6 +110,9 @@ class MFOHLC():
         frs_nav_cat['close'] = frs_nav_cat['1 Year Average']
         frs_nav_cat['volume'] = frs_nav_cat['1 Year Average']
         frs_nav_cat['btt_scheme_code'] = frs_nav_cat['btt_scheme_category']
+
+        # map schemecode values with avg_category_mapping's btt_scheme_code for scheme_name
+        frs_nav_cat['btt_scheme_code'] = frs_nav_cat['btt_scheme_code'].map(avg_category_mapping_dict)
         
         frs_nav_cat = frs_nav_cat[['btt_scheme_code', 'Date',\
                      'open', 'high', 'low', 'close','volume']]
