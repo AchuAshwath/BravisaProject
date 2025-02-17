@@ -5,8 +5,10 @@ import os
 from flask import Flask, render_template, request, jsonify
 import psycopg2
 import warnings
+from datetime import datetime
 warnings.filterwarnings("ignore", category=UserWarning)
 
+DOWNLOADS_FOLDER = os.path.join(os.path.expanduser("~"), "Downloads")
 # Create Blueprint
 industry_mapping = Blueprint('industry_mapping', __name__, template_folder="../templates")
 
@@ -78,12 +80,91 @@ def industrymap():
     scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(ignore_scheme_master_df['scheme_code'])]
     
     print("scheme_master_df : ", len(scheme_master_df))
+    print(scheme_master_df)
     
     # Close the cursor and connection
     cur.close()
     conn.close()
     
     return render_template('industrymap.html', missing_count = len(missing_industry_code_list), missing_index_names_count = len(missing_index_names), missing_index_names = missing_index_names, scheme_master_new_count = len(scheme_master_df))
+
+@industry_mapping.route('/get_industry_list', methods=['GET'])
+def get_industry_list():
+    db = DB_Helper()
+    conn = db.db_connect()
+    cur = conn.cursor()
+    
+    industry_mapping_sql = 'SELECT * FROM public."IndustryMapping";'
+    background_info_sql = 'SELECT * FROM public."BackgroundInfo";'
+
+    industry_mapping_df = pd.read_sql_query(industry_mapping_sql, conn)
+    background_info_df = pd.read_sql_query(background_info_sql, conn)
+    
+    missing_industry_codes = background_info_df[~background_info_df['IndustryCode'].isin(industry_mapping_df['IndustryCode'])]
+    
+    # create new dataframe which will be downloaded with same columns as IndustryMapping table
+    missing_industry_df = pd.DataFrame(columns=industry_mapping_df.columns)
+    
+    # for every row in missing_industry_codes, get the IndustryCode and IndustryName from background_info_df and add it to missing_industry_df at the IndustryCode and IndustryName columns
+    for index, row in missing_industry_codes.iterrows():
+        new_row = pd.DataFrame({'IndustryCode': [row['IndustryCode']], 'IndustryName': [row['IndustryName']]})
+        missing_industry_df = pd.concat([missing_industry_df, new_row], ignore_index=True)
+
+    print(missing_industry_df)
+    
+    today_str = datetime.today().strftime('%Y-%m-%d')
+    
+    # Save the DataFrame as a CSV file
+    missing_industry_df.to_csv(os.path.join(DOWNLOADS_FOLDER, f"missing_industry_list-{today_str}.csv"), index=False)
+    
+    # Close the cursor and connection
+    cur.close()
+    conn.close()
+    
+    return jsonify({'message': 'Data downloaded successfully.'}) 
+
+@industry_mapping.route('/get_scheme_list', methods=['GET'])
+def get_scheme_list():
+    db = DB_Helper()
+    conn = db.db_connect()
+    cur = conn.cursor()
+    
+    # get all distinct shemecodes from SchemeMaster
+    scheme_master_sql = 'SELECT DISTINCT "SchemeCode" FROM public."SchemeMaster";'
+    scheme_master_df = pd.read_sql_query(scheme_master_sql, conn)
+    
+    # get all schemecodes from mf_category_mapping
+    mf_category_mapping_sql = 'SELECT DISTINCT "scheme_code" FROM public."mf_category_mapping";'
+    mf_category_mapping_df = pd.read_sql_query(mf_category_mapping_sql, conn)
+    
+    # get all schemecodes from ignore_scheme_master
+    ignore_scheme_master_sql = 'SELECT DISTINCT "scheme_code" FROM public."ignore_scheme_master";'
+    ignore_scheme_master_df = pd.read_sql_query(ignore_scheme_master_sql, conn)
+    
+    # remove the schemecodes from scheme_master_df that are in mf_category_mapping_df and ignore_scheme_master_df
+    scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(mf_category_mapping_df['scheme_code'])]
+    scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(ignore_scheme_master_df['scheme_code'])]
+
+    columns = ['scheme_code', 'scheme_name', 'scheme_category', 'date', 'btt_scheme_code', 'btt_scheme_category']
+    missing_scheme_list = pd.DataFrame(columns=columns)
+    
+    for index, row in scheme_master_df.iterrows():
+        new_row = pd.DataFrame({'scheme_code': [row['SchemeCode']], 'scheme_name': [''], 'scheme_category': [''], 'date': [''], 'btt_scheme_code': [''], 'btt_scheme_category': ['']})
+        missing_scheme_list = pd.concat([missing_scheme_list, new_row], ignore_index=True)
+
+    print(missing_scheme_list)
+    
+    # Get today's date as a string
+    today_str = datetime.today().strftime('%Y-%m-%d')
+    
+    # Save the DataFrame as a CSV file
+    missing_scheme_list.to_csv(os.path.join(DOWNLOADS_FOLDER, f"missing_scheme_list-{today_str}.csv"), index=False)
+    
+    # Close the cursor and connection
+    cur.close()
+    conn.close()
+    
+    return jsonify({'message': 'Data downloaded successfully.'})
 
 @industry_mapping.route('/add_industry_mapping', methods=['POST'])
 def add_industry_mapping():
@@ -151,4 +232,45 @@ def add_index_mapping():
         conn.rollback()
         return jsonify({'message': 'Error inserting data into the table.'})
     
-    
+
+
+# ✅ Route for mf_category_mapping file
+@industry_mapping.route('/add_missing_mf_category_mapping', methods=['POST'])
+def upload_mf_category():
+    db = DB_Helper()
+    conn = db.db_connect()
+    cur = conn.cursor()
+
+    mf_category_file = request.files.get('missing_mf_category_mapping')
+
+    if not mf_category_file:
+        return jsonify({'message': 'No file uploaded'}), 400
+
+    try:
+        # Save the file
+        mf_category_path = os.path.join(DOWNLOADS_FOLDER, mf_category_file.filename)
+        mf_category_file.save(mf_category_path)
+        mf_category_df = pd.read_csv(mf_category_path)
+        print(mf_category_df.head())
+
+        # Insert into mf_category_mapping table
+        for _, row in mf_category_df.iterrows():
+            sql = """INSERT INTO public."mf_category_mapping"(
+                "scheme_code", "scheme_name", "scheme_category", "date", "btt_scheme_code", "btt_scheme_category") 
+                VALUES (%s, %s, %s, %s, %s, %s);"""
+            data = (
+                row['scheme_code'], row['scheme_name'], row['scheme_category'], row['date'], row['btt_scheme_code'],
+                row['btt_scheme_category']
+            )
+            print(data)
+            cur.execute(sql, data)
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify({'message': 'mf_category_mapping data inserted successfully.'}), 200
+
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
