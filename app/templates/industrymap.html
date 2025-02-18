@@ -266,7 +266,19 @@
         <p class="font">New SchemeCodes in SchemeMaster : {{ scheme_master_new_count }}</p>
         <button type="button" class="button font" id="get_scheme_list">get list</button>
       </div>
-
+      
+      <div class="margin-bottom flex-center space-between"> 
+          <label for="file">IndustryMapping:</label>
+          <div id="mf_category_mapping_drop_zone" class="flex-center">
+              <input type="file" name="missing_industryMapping" id="missing_industryMapping" />
+          </div>
+        </div>
+        
+        <div class="flex-center margin-bottom space-around">
+            <button class="button" type="submit" id="IndustryMapping">Upload</button>
+            </button>
+        </div>
+      </div> 
       <div class="margin-bottom flex-center space-between"> 
             <label for="file">mf_category_mapping :</label>
             <div id="mf_category_mapping_drop_zone" class="flex-center">
@@ -274,12 +286,13 @@
             </div>
           </div>
           
-          <div class="flex-center margin-bottom-25">
+          <div class="flex-center margin-bottom space-around">
               <button class="button" type="submit" id="mf_category_mapping">Upload</button>
+              <button class="button" type="submit" id="update_ignore_list">ignore
+              </button>
           </div>
     </div>
-    
-      <div class="flex-center margin-bottom-25">
+      <!-- <div class="flex-center margin-bottom-25">
         <label class="width-30 font" for="field1">IndustryCode:</label>
         <input
           class="width-30 font"
@@ -388,7 +401,7 @@
           value="Submit"
         />
       </div>
-    <div id="result"></div>
+    <div id="result"></div> -->
   </form>
 
 
@@ -500,6 +513,22 @@
           });
       });
 
+      // add even lister for update_ignore_list button
+      $("#update_ignore_list").click(function (event) {
+          event.preventDefault(); // Prevent form submission
+
+          $.ajax({
+          type: "GET",
+          url: "/update_ignore_list",
+          success: function (response) {
+          $("#result").text(response.message).css("color", "green");
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+          $("#result").text("An error occurred: " + textStatus);
+          },
+          });
+      });
+
       // send the mf_category_mapping file
       $("#mf_category_mapping").click(function (event) {
           event.preventDefault(); // Prevent form submission
@@ -511,6 +540,29 @@
           $.ajax({
           type: "POST",
           url: "/add_missing_mf_category_mapping",
+          data: formData,
+          contentType: false,
+          processData: false,
+          success: function (response) {
+          $("#result").text(response.message).css("color", "green");
+          },
+          error: function (jqXHR, textStatus, errorThrown) {
+          $("#result").text("An error occurred: " + textStatus);
+          },
+          });
+      });
+
+      // send the industryMapping file
+      $("#IndustryMapping").click(function (event) {
+          event.preventDefault(); // Prevent form submission
+
+          var formData = new FormData();
+          var file = $("#missing_industryMapping")[0].files[0];
+          formData.append("missing_industryMapping", file);
+
+          $.ajax({
+          type: "POST",
+          url: "/add_missing_industry_mapping",
           data: formData,
           contentType: false,
           processData: false,

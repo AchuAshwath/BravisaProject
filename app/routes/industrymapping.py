@@ -274,3 +274,81 @@ def upload_mf_category():
     except Exception as e:
         return jsonify({'message': str(e)}), 500
 
+@industry_mapping.route('/add_missing_industry_mapping', methods=['POST'])
+def upload_missing_industry_mapping():
+    db = DB_Helper()
+    conn = db.db_connect()
+    cur = conn.cursor()
+
+    missing_industry_file = request.files.get('missing_industry_mapping')
+
+    if not missing_industry_file:
+        return jsonify({'message': 'No file uploaded'}), 400
+
+    try:
+        # Save the file
+        missing_industry_path = os.path.join(DOWNLOADS_FOLDER, missing_industry_file.filename)
+        missing_industry_file.save(missing_industry_path)
+        missing_industry_df = pd.read_csv(missing_industry_path)
+        print(missing_industry_df.head())
+
+        # Insert into IndustryMapping table
+        for _, row in missing_industry_df.iterrows():
+            sql = """INSERT INTO public."IndustryMapping"(
+                "IndustryCode", "IndustryName", "Industry", "Code", "SubSector", "SubSectorCode", "Sector", "SectorCode", \
+                "SubIndustry", "SubIndustryCode", "IndustryIndexName", "SubSectorIndexName", "SectorIndexName", "SubIndustryIndexName")
+                VALUES (%   s,%s, %s, %s, %s,%s, %s, %s, %s, %s, %s,%s, %s,%s);"""  
+                
+            data = (row['IndustryCode'], row['IndustryName'], row['Industry'], row['Code'], row['SubSector'], row['SubSectorCode'], 
+                    row['Sector'], row['SectorCode'], row['SubIndustry'], row['SubIndustryCode'], row['IndustryIndexName'], 
+                    row['SubSectorIndexName'], row['SectorIndexName'], row['SubIndustryIndexName'])
+            print(data)
+            
+            cur.execute(sql, data)
+            conn.commit()
+            
+        cur.close()
+        
+        return jsonify({'message': 'missing_industry_mapping data inserted successfully.'}), 200
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+    
+@industry_mapping.route('/update_ignore_list', methods=['GET'])
+def update_ignore_list():
+    db = DB_Helper()
+    conn = db.db_connect()
+    cur = conn.cursor()
+    
+    # get all distinct shemecodes from SchemeMaster
+    scheme_master_sql = 'SELECT DISTINCT "SchemeCode" FROM public."SchemeMaster";'
+    scheme_master_df = pd.read_sql_query(scheme_master_sql, conn)
+    
+    # get all schemecodes from mf_category_mapping
+    mf_category_mapping_sql = 'SELECT DISTINCT "scheme_code" FROM public."mf_category_mapping";'
+    mf_category_mapping_df = pd.read_sql_query(mf_category_mapping_sql, conn)
+    
+    # get all schemecodes from ignore_scheme_master
+    ignore_scheme_master_sql = 'SELECT DISTINCT "scheme_code" FROM public."ignore_scheme_master";'
+    ignore_scheme_master_df = pd.read_sql_query(ignore_scheme_master_sql, conn)
+    
+    # remove the schemecodes from scheme_master_df that are in mf_category_mapping_df and ignore_scheme_master_df
+    scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(mf_category_mapping_df['scheme_code'])]
+    scheme_master_df = scheme_master_df[~scheme_master_df['SchemeCode'].isin(ignore_scheme_master_df['scheme_code'])]
+    
+    print("scheme_master_df : ", len(scheme_master_df))
+    print(scheme_master_df['SchemeCode'].tolist())
+    
+    # Insert into ignore_scheme_master table
+    for _, row in scheme_master_df.iterrows():
+        print(row['SchemeCode'])
+        sql = """INSERT INTO public."ignore_scheme_master"("scheme_code") VALUES (%s);"""
+        data = (row['SchemeCode'],)
+        cur.execute(sql, data)
+        conn.commit()
+        
+        print("Inserted")
+        
+    cur.close()
+    conn.close()
+        
+    return jsonify({'message': 'Ignore list updated successfully.'}), 200
