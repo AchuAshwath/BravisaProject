@@ -280,7 +280,7 @@ def upload_missing_industry_mapping():
     conn = db.db_connect()
     cur = conn.cursor()
 
-    missing_industry_file = request.files.get('missing_industry_mapping')
+    missing_industry_file = request.files.get('missing_industryMapping')
 
     if not missing_industry_file:
         return jsonify({'message': 'No file uploaded'}), 400
@@ -297,11 +297,11 @@ def upload_missing_industry_mapping():
             sql = """INSERT INTO public."IndustryMapping"(
                 "IndustryCode", "IndustryName", "Industry", "Code", "SubSector", "SubSectorCode", "Sector", "SectorCode", \
                 "SubIndustry", "SubIndustryCode", "IndustryIndexName", "SubSectorIndexName", "SectorIndexName", "SubIndustryIndexName")
-                VALUES (%   s,%s, %s, %s, %s,%s, %s, %s, %s, %s, %s,%s, %s,%s);"""  
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,%s, %s, %s);"""  
                 
             data = (row['IndustryCode'], row['IndustryName'], row['Industry'], row['Code'], row['SubSector'], row['SubSectorCode'], 
-                    row['Sector'], row['SectorCode'], row['SubIndustry'], row['SubIndustryCode'], row['IndustryIndexName'], 
-                    row['SubSectorIndexName'], row['SectorIndexName'], row['SubIndustryIndexName'])
+                    row['Sector'], row['SectorCode'], row['SubIndustry'], row['SubIndustryCode'], 'INDUSTRY-'+row['Industry'], 
+                    'SUBSECTOR-'+row['SubSector'], 'SECTOR-'+row['Sector'], 'SUBINDUSTRY-'+row['SubIndustry'])
             print(data)
             
             cur.execute(sql, data)

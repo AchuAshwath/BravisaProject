@@ -16,6 +16,7 @@ from datetime import timedelta
 import sys
 from utils.db_helper import DB_Helper
 import utils.date_set as date_set
+from dateutil.relativedelta import relativedelta
 
 class IndexPerformance:
     """ Contains methods to get OHLC for different indexes and calculate
@@ -39,14 +40,13 @@ class IndexPerformance:
 
         return index_ohlc
 
-    def get_index_ohlc_back(self, curr_date,conn):
+    def get_index_ohlc_back(self, curr_date, conn):
         """ Function to get OHLC for indexes for backdate. """
-        back_date = (datetime.date(curr_date.year - 5, curr_date.month, curr_date.day))
+        back_date = curr_date - relativedelta(years=5)
         sql = 'SELECT * FROM public."IndexHistory" \
                WHERE "DATE" >= \''+str(back_date)+'\' \
                AND "DATE" < \''+str(curr_date)+'\';'
-        index_ohlc_back = sqlio.read_sql_query(sql, con=conn)
-
+        index_ohlc_back = pd.read_sql_query(sql, con=conn)
         return index_ohlc_back
 
     def get_index_change(self, index_ohlc, index_ohlc_back):
