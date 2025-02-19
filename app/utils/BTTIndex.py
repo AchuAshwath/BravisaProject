@@ -381,8 +381,20 @@ class BTTIndex():
         btt_index['IndexName'] = 'BTTIndex'
         btt_index['Index'] = 'BTT'
         btt_index['Rank'] = np.nan
-
-        btt_index_history = btt_index[['TICKER', 'GenDate', 'Open', 'High', 'Low', 'Close', 'sum_vol']]
+        btt_index['MCap_OPEN'] = np.nan
+        btt_index['MCap_HIGH'] = np.nan
+        btt_index['MCap_LOW'] = np.nan
+        btt_index['MCap_CLOSE'] = np.nan
+        btt_index['MCap_Open_Index'] = np.nan
+        btt_index['MCap_High_Index'] = np.nan
+        btt_index['MCap_Low_Index'] = np.nan
+        btt_index['MCap_Close_Index'] = np.nan
+        btt_index[['ff_open_sum', 'ff_high_sum', \
+                          'ff_low_sum', 'ff_close_sum', 'MCap_Open_sum', 'MCap_High_sum', 'MCap_Low_sum', 'MCap_Close_sum',]] = np.nan
+        
+        
+  
+        btt_index_history = btt_index[['TICKER', 'GenDate', 'Open', 'High', 'Low', 'Close', 'MCap_OPEN', 'MCap_HIGH', 'MCap_LOW', 'MCap_CLOSE', 'sum_vol']]
 
         exportfilename = "BTT_IndexHistory.csv"
         exportfile = open(exportfilename,"w")
@@ -398,16 +410,16 @@ class BTTIndex():
             cur.copy_expert(sql=copy_sql, file=f)
             conn.commit()
             f.close()
-        os.remove(exportfilename)
+        # os.remove(exportfilename)
 
 
         # ************************************
 
-        btt_index_IRS = btt_index[['GenDate', 'IndexName','Index', 'Open', 'High', \
-                                   'Low', 'Close', 'Volume', 'PE', 'EPS', \
-                                    'company_count','OS','Rank','Change', \
-                                    'Earnings Growth','PE High','PE High Date', \
-                                    'PE Low','PE Low Date']]
+        btt_index_IRS = btt_index[['GenDate', 'IndexName', 'Index', 'Open', 'High', 'Low', 'Close', \
+                         'MCap_Open_Index', 'MCap_High_Index', 'MCap_Low_Index', 'MCap_Close_Index', 'sum_vol', 'PE', 'EPS', \
+                        'company_count', 'os_sum', 'Rank', 'Change', 'Earnings Growth','ff_open_sum', 'ff_high_sum', \
+                          'ff_low_sum', 'ff_close_sum', 'MCap_Open_sum', 'MCap_High_sum', 'MCap_Low_sum', 'MCap_Close_sum',\
+                              'PE High', 'PE High Date', 'PE Low', 'PE Low Date']]
 
         exportfilename1 = "BTT_IndexIRS.csv"
         exportfile = open(exportfilename1,"w")
@@ -424,7 +436,7 @@ class BTTIndex():
             cur.copy_expert(sql=copy_sql, file=f)
             conn.commit()
             f.close()
-        os.remove(exportfilename1)
+        # os.remove(exportfilename1)
 
     def gen_btt_index_day_change(self, conn, cur, btt_index, date):
 

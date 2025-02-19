@@ -23,9 +23,8 @@ class StockPerformance:
         (1 day, 5 days, 30 days, 90 days, 6 months, 1 years, 2 years, 5 years).  
     """
 
-    def __init__(self):
-
-        date = datetime.date.today()
+    def __init__(self, curr_date):
+        date = curr_date
         self.back_date = (datetime.date(date.year - 5, date.month, date.day))
         self.date = date
 
@@ -263,8 +262,8 @@ def main(curr_date):
     conn = DB_Helper().db_connect()
     cur = conn.cursor()
 
-    stock_performance = StockPerformance()
     date = curr_date
+    stock_performance = StockPerformance(date)
 
     print("\nGetting OHLC for current date:", date)
     ohlc = stock_performance.get_ohlc_current(date, conn)
