@@ -233,7 +233,7 @@ def main(curr_date):
     else:
 
         print("PRS empty for today:", date)
-        raise ValueError('PRS data not found for date: ' +
+        print('PRS data not found for date: ' +
                          date.strftime("%Y-%m-%d"))
 
     conn.close()

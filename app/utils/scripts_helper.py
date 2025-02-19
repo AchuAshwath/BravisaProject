@@ -96,11 +96,11 @@ def friday_btt(curr_date, is_holiday):
             perstock_change.main(curr_date)
         except Exception as e:
             print(e, flush=True)	
-        # try:
-        #     index_offhighlow.main(curr_date,conn, cur)
-        # except Exception as e:
-        #     print(e, flush=True)
-        # index_change.main(curr_date)
+        try:
+            index_offhighlow.main(curr_date,conn, cur)
+        except Exception as e:
+            print(e, flush=True)
+        index_change.main(curr_date)
 
         # weekly_rt = WeeklyRTProcess()
         # weekly_rt.gen_rt_weekly(curr_date,conn, cur)
