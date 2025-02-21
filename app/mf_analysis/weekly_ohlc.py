@@ -148,7 +148,7 @@ class WeeklyOHLC():
             close_val = np.pad(close_val, (0, max_len - len(close_val)), 'constant', constant_values=np.nan)
             volume = np.pad(volume, (0, max_len - len(volume)), 'constant', constant_values=np.nan)
 
-            print(stock)
+            # print(stock)
             df = pd.DataFrame(data={'company_code': stock, 'open': open_val, 'high': high_val,
                                     'low': low_val, 'close': close_val, 'volume': volume, 'date': date})
 
@@ -176,25 +176,29 @@ class WeeklyOHLC():
         """
 
         # print(ohlc_weekly)
+        #check if ohlc_weekly is not empty
+        if not ohlc_weekly.empty:
+            # Fill null values as -1 to cast volume as integer and replace by it by NaN
+            ohlc_weekly["volume"].fillna(-1, inplace=True)
+            ohlc_weekly = ohlc_weekly.astype({"volume": int})
+            ohlc_weekly = ohlc_weekly.astype({"volume": str})
+            ohlc_weekly["volume"] = ohlc_weekly["volume"].replace('-1', np.nan)
 
-        # Fill null values as -1 to cast volume as integer and replace by it by NaN
-        ohlc_weekly["volume"].fillna(-1, inplace=True)
-        ohlc_weekly = ohlc_weekly.astype({"volume": int})
-        ohlc_weekly = ohlc_weekly.astype({"volume": str})
-        ohlc_weekly["volume"] = ohlc_weekly["volume"].replace('-1', np.nan)
+            exportfilename = "ohlc_weekly.csv"
+            exportfile = open(exportfilename, "w")
+            ohlc_weekly.to_csv(exportfile, header=True, index=False,
+                            float_format="%.2f", lineterminator='\r')
+            exportfile.close()
 
-        exportfilename = "ohlc_weekly.csv"
-        exportfile = open(exportfilename, "w")
-        ohlc_weekly.to_csv(exportfile, header=True, index=False,
-                           float_format="%.2f", lineterminator='\r')
-        exportfile.close()
+            copy_sql = """
+            COPY public.ohlc_weekly FROM stdin WITH CSV HEADER
+            DELIMITER as ','
+            """
 
-        copy_sql = """
-        COPY public.ohlc_weekly FROM stdin WITH CSV HEADER
-        DELIMITER as ','
-        """
-
-        with open(exportfilename, 'r') as f:
-            cur.copy_expert(sql=copy_sql, file=f)
-            conn.commit()
-        f.close()
+            with open(exportfilename, 'r') as f:
+                cur.copy_expert(sql=copy_sql, file=f)
+                conn.commit()
+                f.close()
+                os.remove(exportfilename)
+        else:
+            print("ohlc_weekly is empty")

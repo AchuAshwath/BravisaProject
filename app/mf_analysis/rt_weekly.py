@@ -141,7 +141,10 @@ class WeeklyRTProcess():
         print("Generating trends data for the week\n")
         self.weekly_ohlc(conn, cur, curr_date)
         self.weekly_indicator(conn, cur, curr_date)
-        self.weekly_trends(conn, cur, curr_date)
+        try:
+            self.weekly_trends(conn, cur, curr_date)
+        except Exception as e:
+            print("Error in weekly trends generation: ", e)
 
     def gen_rt_weekly_history(self, conn, cur):
         """ Function to generate Weekly trends data for backdate. 
