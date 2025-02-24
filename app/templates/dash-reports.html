@@ -113,6 +113,37 @@
                 </div>
             </div>
 
+            <div class="row mt-4 flex space-around">
+                <!-- Checkbox -->
+                <div class="col-md-4 d-inline-block">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="check_box" name="enable_options" {% if check_box %}checked{% endif %}>
+                        <label class="form-check-label" for="enable-options-checkbox">
+                            Enable Column Query
+                        </label>
+                    </div>
+                </div>
+            
+                <!-- Input Selector 1 -->
+                <div class="col-md-4 d-inline-block">
+                    <label for="input-select-1">Column</label>
+                    <select id="input-select-1" name="input-select-1" class="form-control" {% if enable_options != 'on' %}disabled{% endif %} required>
+                        <option value="" disabled selected>Choose a Column</option>
+                        {% for column in non_date_columns %}
+                            <option value="{{ column }}" {% if non_date_columns == column %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            
+                <!-- Input Field -->
+                <div class="col-md-4 d-inline-block">
+                    <label for="input_value1"> Column Value</label>
+                    <input type="text" id="input-text" name="Code" class="form-control" placeholder="Enter NSE Code" value="{{ value }}">
+                </div>
+            </div>
+            
+
+
             <!-- Date Range -->
             <div class="row mt-3">
                 <div class="col-md-6">
@@ -191,6 +222,21 @@
                 });
         });
         
+        // event listener for get_columns_non_date
+        // document.getElementById("input-select-1").addEventListener("change", function () {
+        //     let schema = document.getElementById("schema-select").value;
+        //     let table = document.getElementById("table-select").value;
+        //     let column = this.value;
+        //     fetch(`/get_columns_non_date?schema=${schema}&table=${table}&column=${column}`)
+        //         .then(response => response.json())
+        //         .then(data => {
+        //             let inputSelect1 = document.getElementById("input-select-1");
+        //             inputSelect1.innerHTML = '<option value="" disabled selected>Choose a Column</option>';
+        //             data.columns.forEach(column => {
+        //                 inputSelect1.innerHTML += `<option value="${column}">${column}</option>`;
+        //             });
+        //         });
+        // });
 
         document.getElementById("start-date").addEventListener("change", function () {
             let endDate = document.getElementById("end-date");
@@ -208,6 +254,57 @@
                 }, 1000); // 1 second for fade out
             }
         }, 3000);
+        // document.getElementById("check_box").addEventListener("change", function() {
+        //     var isChecked = this.checked;
+        //     var inputSelect1 = document.getElementById("input-select-1");
+        //     var inputValue = document.getElementById("input-text");
+            
+        //     inputSelect1.disabled = !isChecked;
+        //     inputValue.disabled = !isChecked;
+
+        //     if (isChecked) {
+        //         let schema = document.getElementById("schema-select").value;
+        //         let table = document.getElementById("table-select").value;
+        //         fetch(`/get_columns_non_date?schema=${schema}&table=${table}`)
+        //             .then(response => response.json())
+        //             .then(data => {
+        //                 inputSelect1.innerHTML = '<option value="" disabled selected>Choose a Column from js</option>';
+        //                 data.non_date_columns.forEach(column => {
+        //                     inputSelect1.innerHTML += `<option value="${column}" ${column == "{{ non_date_columns }}" ? 'selected' : ''}>${column}</option>`;
+        //                 });
+        //             });
+        //     }
+        // });
+        function fetchAndPopulateColumns() {
+            var inputSelect1 = document.getElementById("input-select-1");
+            var inputValue = document.getElementById("input-text");
+            var isChecked = document.getElementById("check_box").checked;
+
+            inputSelect1.disabled = !isChecked;
+            inputValue.disabled = !isChecked;
+
+            if (isChecked) {
+                let schema = document.getElementById("schema-select").value;
+                let table = document.getElementById("table-select").value;
+                fetch(`/get_columns_non_date?schema=${schema}&table=${table}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        inputSelect1.innerHTML = '<option value="" disabled selected>Choose a Column </option>';
+                        data.non_date_columns.forEach(column => {
+                            inputSelect1.innerHTML += `<option value="${column}" ${column == "{{ non_date_columns }}" ? 'selected' : ''}>${column}</option>`;
+                        });
+                    });
+            }
+        }
+        document.addEventListener("DOMContentLoaded", function() {
+            // Call the function on page load
+            fetchAndPopulateColumns();
+        });
+
+        document.getElementById("check_box").addEventListener("change", function() {
+            // Call the function on checkbox change
+            fetchAndPopulateColumns();
+        });
     </script>
     
 </body>
