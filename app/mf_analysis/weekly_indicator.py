@@ -136,39 +136,42 @@ class WeeklyIndicator():
             Raises: 
                 No errors/exceptions.   
         """
+        # check if weekly_indicator_data is not empty
+        if not weekly_indicator_data.empty:
+            # Fill null values as -1 to cast volume as integer and replace by it by NaN
+            weekly_indicator_data["bse_code"].fillna(-1, inplace=True)
+            weekly_indicator_data = weekly_indicator_data.astype({"bse_code": int})
+            weekly_indicator_data = weekly_indicator_data.astype({"bse_code": str})
+            weekly_indicator_data["bse_code"] = weekly_indicator_data["bse_code"].replace(
+                '-1', np.nan)
 
-        # Fill null values as -1 to cast volume as integer and replace by it by NaN
-        weekly_indicator_data["bse_code"].fillna(-1, inplace=True)
-        weekly_indicator_data = weekly_indicator_data.astype({"bse_code": int})
-        weekly_indicator_data = weekly_indicator_data.astype({"bse_code": str})
-        weekly_indicator_data["bse_code"] = weekly_indicator_data["bse_code"].replace(
-            '-1', np.nan)
+            weekly_indicator_data["volume"].fillna(-1, inplace=True)
+            weekly_indicator_data = weekly_indicator_data.astype({"volume": int})
+            weekly_indicator_data = weekly_indicator_data.astype({"volume": str})
+            weekly_indicator_data["volume"] = weekly_indicator_data["volume"].replace(
+                '-1', np.nan)
 
-        weekly_indicator_data["volume"].fillna(-1, inplace=True)
-        weekly_indicator_data = weekly_indicator_data.astype({"volume": int})
-        weekly_indicator_data = weekly_indicator_data.astype({"volume": str})
-        weekly_indicator_data["volume"] = weekly_indicator_data["volume"].replace(
-            '-1', np.nan)
+            # weekly_indicator_data = weekly_indicator_data[['company_code','company_name','nse_code','bse_code','open','high','low','close','volume', \
+            #                         'ema13','ema26','macd','macd_signal','macd_diff','atr','gen_date', 'ema12', 'ema50']]
 
-        # weekly_indicator_data = weekly_indicator_data[['company_code','company_name','nse_code','bse_code','open','high','low','close','volume', \
-        #                         'ema13','ema26','macd','macd_signal','macd_diff','atr','gen_date', 'ema12', 'ema50']]
+            weekly_indicator_data = weekly_indicator_data[['company_code', 'company_name', 'nse_code', 'bse_code', 'open', 'high', 'low', 'close', 'volume',
+                                                        'ema13', 'ema26', 'macd', 'macd_signal', 'macd_diff', 'atr', 'gen_date', 'ema12', 'ema50']]
 
-        weekly_indicator_data = weekly_indicator_data[['company_code', 'company_name', 'nse_code', 'bse_code', 'open', 'high', 'low', 'close', 'volume',
-                                                       'ema13', 'ema26', 'macd', 'macd_signal', 'macd_diff', 'atr', 'gen_date', 'ema12', 'ema50']]
+            exportfilename = "weekly_indicator_data.csv"
+            exportfile = open(exportfilename, "w")
+            weekly_indicator_data.to_csv(
+                exportfile, header=True, index=False,  float_format="%.2f", lineterminator='\r')
+            exportfile.close()
 
-        exportfilename = "weekly_indicator_data.csv"
-        exportfile = open(exportfilename, "w")
-        weekly_indicator_data.to_csv(
-            exportfile, header=True, index=False,  float_format="%.2f", lineterminator='\r')
-        exportfile.close()
+            copy_sql = """
+            COPY mf_analysis.indicators_weekly FROM stdin WITH CSV HEADER
+            DELIMITER as ','
+            """
 
-        copy_sql = """
-        COPY mf_analysis.indicators_weekly FROM stdin WITH CSV HEADER
-        DELIMITER as ','
-        """
-
-        with open(exportfilename, 'r') as f:
-            cur.copy_expert(sql=copy_sql, file=f)
-            conn.commit()
-        f.close()
-        os.remove(exportfilename)
+            with open(exportfilename, 'r') as f:
+                cur.copy_expert(sql=copy_sql, file=f)
+                conn.commit()
+            f.close()
+            os.remove(exportfilename)
+        else:
+            print("No data to insert")

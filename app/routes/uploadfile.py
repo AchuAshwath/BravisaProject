@@ -10,7 +10,7 @@ uploadfile = Blueprint('uploadfile', __name__, template_folder="../templates")
 def fileupload():
     return render_template('fileupload.html')
 
-@uploadfile.route('/uploadfile', methods=['GEslakdjfldkT'])
+@uploadfile.route('/uploadfile', methods=['POST'])
 def upload_file():
     saved_files = []
 

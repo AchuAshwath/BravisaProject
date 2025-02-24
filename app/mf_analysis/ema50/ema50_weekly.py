@@ -81,9 +81,15 @@ class EMA50_weekly():
         """insert the ema50_weekly data to the DB
         
         """
+            # Extract the date from the tuple if it is in tuple format
+        if ema50_above_df['date'].apply(lambda x: isinstance(x, tuple)).any():
+            ema50_above_df['date'] = ema50_above_df['date'].apply(lambda x: x[0] if isinstance(x, tuple) else x)
+        
+        # Convert the date column to datetime format and then to string format
         ema50_above_df['date'] = pd.to_datetime(ema50_above_df['date'], errors='coerce')
-    
         ema50_above_df['date'] = ema50_above_df['date'].dt.strftime('%Y-%m-%d')
+        
+        # print(ema50_above_df['date'])
         exportfilename = "ema50_above_df.csv"
         exportfile = open(exportfilename, "w")
         ema50_above_df.to_csv(exportfile, header=True, index=False, float_format="%.2f", lineterminator='\r')
@@ -113,13 +119,14 @@ class EMA50_weekly():
         
             print("EMA50 calculated Data")
             ema50_Above_df = self.ema50_above_close(indicator_weekly)
+            print(ema50_Above_df)
         
             print("inserting the EMA50Above_percentage df to the DB")
             self.insert_ema50_weekly(ema50_Above_df, conn, cur)      
              
         else :
             print("Indicator weekly data not found for date:", curr_date)
-            raise ValueError("Indicator weekly data not found for date: "+str(curr_date))
+            # raise ValueError("Indicator weekly data not found for date: "+str(curr_date))
             
 
 
