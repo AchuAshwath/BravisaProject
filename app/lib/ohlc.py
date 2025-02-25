@@ -123,7 +123,7 @@ def fetch_nse( curr_date):
     columns_to_remove = [x for x in csv_columns if x not in table_columns]
 
     table = table.drop(columns_to_remove, axis=1)
-    table = table[table.SERIES.isin(["EQ", "BZ", "BE", "RR", "IV"])]
+    table = table[table.SERIES.isin(["EQ", "BZ", "BE", "RR", "IV", "SM"])]
     table = table[['SYMBOL', 'SERIES', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'LAST',
                    'PREVCLOSE', 'TOTTRDQTY', 'TOTTRDVAL', 'TIMESTAMP', 'TOTALTRADES', 'ISIN']]
 

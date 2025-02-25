@@ -49,6 +49,7 @@ class BTTIndex():
                                 and "TICKER" = \'BTTIndex\' \
                                 ORDER by "TICKER","DATE" desc ;')
         btt_prevData = sqlio.read_sql_query(indexhistory_sql, con = conn)
+        print("BTT Prev Data: ", btt_prevData)
         
 
         divisor_backdate_sql = 'SELECT * FROM public."BTTDivisor" \
@@ -456,6 +457,7 @@ class BTTIndex():
 
         cur_close_list = current_close_BTTIndex['CLOSE'] 
         cur_close = cur_close_list.item() if len(cur_close_list.index) == 1 else np.nan
+        print("Current Close: ", cur_close)
  
 
         prev_close_BTTIndex_query = 'select "CLOSE" from public."IndexHistory" \
@@ -465,7 +467,7 @@ class BTTIndex():
 
         prev_close_list = prev_close_BTTIndex['CLOSE'] 
         prev_close = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
-
+        print("Prev Close: ", prev_close)
         change = ((cur_close - prev_close) / prev_close) * 100 if prev_close != np.nan else 0
 
         btt_index = pd.DataFrame({"Change": [change],"GenDate": [date]})
