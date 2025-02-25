@@ -88,27 +88,27 @@ def friday_btt(curr_date, is_holiday):
         PRS().generate_prs_daily(curr_date, conn,cur)
         IRS().gen_irs_current(curr_date,conn, cur)
         
-        # IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
-        # BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
-        # CombinedRank().current_rank(curr_date, conn,cur)
-        # perstock_offhighlow.main(curr_date)
-        # try:
-        #     perstock_change.main(curr_date)
-        # except Exception as e:
-        #     print(e, flush=True)	
-        # try:
-        #     index_offhighlow.main(curr_date,conn, cur)
-        # except Exception as e:
-        #     print(e, flush=True)
-        # index_change.main(curr_date)
+        IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
+        BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
+        CombinedRank().current_rank(curr_date, conn,cur)
+        perstock_offhighlow.main(curr_date)
+        try:
+            perstock_change.main(curr_date)
+        except Exception as e:
+            print(e, flush=True)	
+        try:
+            index_offhighlow.main(curr_date,conn, cur)
+        except Exception as e:
+            print(e, flush=True)
+        index_change.main(curr_date)
 
-        # weekly_rt = WeeklyRTProcess()
-        # weekly_rt.gen_rt_weekly(curr_date,conn, cur)
-        # weekly_rt.gen_trend_weightage_weekly_data(curr_date,conn, cur)
+        weekly_rt = WeeklyRTProcess()
+        weekly_rt.gen_rt_weekly(curr_date,conn, cur)
+        weekly_rt.gen_trend_weightage_weekly_data(curr_date,conn, cur)
         
-        # EMA50_weekly().generating_EMA50_weekly(curr_date, conn, cur)
-        # MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
-        # MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
+        EMA50_weekly().generating_EMA50_weekly(curr_date, conn, cur)
+        MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
+        MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
     else:
         print("\t", curr_date, "is an off day.", flush=True)
         
@@ -144,27 +144,27 @@ def month_endf(curr_date,is_holiday):
         PRS().generate_prs_daily(curr_date, conn,cur)
         IRS().gen_irs_current(curr_date,conn, cur)
 
-        # IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
-        # BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
-        # CombinedRank().current_rank(curr_date, conn,cur)
-        # perstock_offhighlow.main(curr_date)
-        # try:
-        #     perstock_change.main(curr_date)
-        # except Exception as e:
-        #     print(e, flush=True)		
-        # try:
-        #     index_offhighlow.main(curr_date,conn, cur)
-        # except Exception as e:
-        #     print(e, flush=True)	
-        # index_change.main(curr_date)
+        IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
+        BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
+        CombinedRank().current_rank(curr_date, conn,cur)
+        perstock_offhighlow.main(curr_date)
+        try:
+            perstock_change.main(curr_date)
+        except Exception as e:
+            print(e, flush=True)		
+        try:
+            index_offhighlow.main(curr_date,conn, cur)
+        except Exception as e:
+            print(e, flush=True)	
+        index_change.main(curr_date)
 
-        # monthly_rt = MonthlyRTProcess()
-        # monthly_rt.gen_rt_monthly(curr_date,conn, cur)
-        # monthly_rt.gen_trend_weightage_monthly_data(curr_date,conn, cur)
+        monthly_rt = MonthlyRTProcess()
+        monthly_rt.gen_rt_monthly(curr_date,conn, cur)
+        monthly_rt.gen_trend_weightage_monthly_data(curr_date,conn, cur)
         
-        # EMA50_monthly().generating_EMA50_monthly(curr_date, conn, cur)
-        # MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
-        # MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
+        EMA50_monthly().generating_EMA50_monthly(curr_date, conn, cur)
+        MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
+        MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
     else:
         print("\t", curr_date, "is an off day.")
     
@@ -200,27 +200,27 @@ def daily_btt(curr_date,is_holiday):
         PE.current_pe(curr_date)
         PRS().generate_prs_daily(curr_date, conn,cur)
         IRS().gen_irs_current(curr_date,conn, cur)
-        # IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
-        # BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
-        # CombinedRank().current_rank(curr_date, conn,cur)
-        # perstock_offhighlow.main(curr_date)
-        # try:
-        #     perstock_change.main(curr_date)
-        # except Exception as e:
-        #     print(e, flush=True)
-        # try:
-        #     index_offhighlow.main(curr_date,conn, cur)
-        # except Exception as e:
-        #     print(e, flush=True)	
-        # index_change.main(curr_date)
+        IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
+        BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
+        CombinedRank().current_rank(curr_date, conn,cur)
+        perstock_offhighlow.main(curr_date)
+        try:
+            perstock_change.main(curr_date)
+        except Exception as e:
+            print(e, flush=True)
+        try:
+            index_offhighlow.main(curr_date,conn, cur)
+        except Exception as e:
+            print(e, flush=True)	
+        index_change.main(curr_date)
 
-        # daily_rt = DailyRTProcess()
-        # daily_rt.gen_rt_daily(curr_date,conn, cur)
-        # daily_rt.gen_trend_weightage_daily_data(curr_date,conn, cur)
+        daily_rt = DailyRTProcess()
+        daily_rt.gen_rt_daily(curr_date,conn, cur)
+        daily_rt.gen_trend_weightage_daily_data(curr_date,conn, cur)
         
-        # EMA50_daily().generating_EMA50_daily(curr_date, conn, cur)
-        # MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
-        # MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
+        EMA50_daily().generating_EMA50_daily(curr_date, conn, cur)
+        MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
+        MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
     else:
         print("\t", curr_date, "is an off day.")
 
@@ -254,27 +254,27 @@ def daily_scripts(curr_date,is_holiday):
         PE.current_pe(curr_date)
         PRS().generate_prs_daily(curr_date, conn,cur)
         IRS().gen_irs_current(curr_date,conn, cur)
-        # IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
-        # BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
-        # CombinedRank().current_rank(curr_date, conn,cur)
-        # perstock_offhighlow.main(curr_date)
-        # try:
-        #     perstock_change.main(curr_date)
-        # except Exception as e:
-        #     print(e, flush=True)
-        # try:
-        #     index_offhighlow.main(curr_date,conn, cur)
-        # except Exception as e:
-        #     print(e, flush=True)	
-        # index_change.main(curr_date)
+        IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
+        BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
+        CombinedRank().current_rank(curr_date, conn,cur)
+        perstock_offhighlow.main(curr_date)
+        try:
+            perstock_change.main(curr_date)
+        except Exception as e:
+            print(e, flush=True)
+        try:
+            index_offhighlow.main(curr_date,conn, cur)
+        except Exception as e:
+            print(e, flush=True)	
+        index_change.main(curr_date)
 
-        # daily_rt = DailyRTProcess()
-        # daily_rt.gen_rt_daily(curr_date,conn, cur)
-        # daily_rt.gen_trend_weightage_daily_data(curr_date,conn, cur)
+        daily_rt = DailyRTProcess()
+        daily_rt.gen_rt_daily(curr_date,conn, cur)
+        daily_rt.gen_trend_weightage_daily_data(curr_date,conn, cur)
         
-        # EMA50_daily().generating_EMA50_daily(curr_date, conn, cur)
-        # MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
-        # MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
+        EMA50_daily().generating_EMA50_daily(curr_date, conn, cur)
+        MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
+        MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
     else:
         print("\t", curr_date, "is an off day.")
     
@@ -307,27 +307,27 @@ def friday_scripts(curr_date,is_holiday):
         PE.current_pe(curr_date)
         PRS().generate_prs_daily(curr_date, conn,cur)
         IRS().gen_irs_current(curr_date,conn, cur)
-        # IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
-        # BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
-        # CombinedRank().current_rank(curr_date, conn,cur)
-        # perstock_offhighlow.main(curr_date)
-        # try:
-        #     perstock_change.main(curr_date)
-        # except Exception as e:
-        #     print(e, flush=True)
-        # try:
-        #     index_offhighlow.main(curr_date,conn, cur)
-        # except Exception as e:
-        #     print(e, flush=True)	
-        # index_change.main(curr_date)
+        IndexCloseChange().generating_daily_nse_index_changeValues_df(curr_date, conn, cur)
+        BTTIndex().cal_BTT_divisor_Index(curr_date,conn,cur)
+        CombinedRank().current_rank(curr_date, conn,cur)
+        perstock_offhighlow.main(curr_date)
+        try:
+            perstock_change.main(curr_date)
+        except Exception as e:
+            print(e, flush=True)
+        try:
+            index_offhighlow.main(curr_date,conn, cur)
+        except Exception as e:
+            print(e, flush=True)	
+        index_change.main(curr_date)
 
-        # weekly_rt = WeeklyRTProcess()
-        # weekly_rt.gen_rt_weekly(curr_date,conn, cur)
-        # weekly_rt.gen_trend_weightage_weekly_data(curr_date,conn, cur)
+        weekly_rt = WeeklyRTProcess()
+        weekly_rt.gen_rt_weekly(curr_date,conn, cur)
+        weekly_rt.gen_trend_weightage_weekly_data(curr_date,conn, cur)
         
-        # EMA50_weekly().generating_EMA50_weekly(curr_date, conn, cur)
-        # MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
-        # MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
+        EMA50_weekly().generating_EMA50_weekly(curr_date, conn, cur)
+        MarketQualityNSE500().mqn_nse(curr_date,conn, cur)
+        MarketQualityNIFTY().mqn_nifty(curr_date,conn, cur)
     else:
         print("\t", curr_date, "is an off day.")
     

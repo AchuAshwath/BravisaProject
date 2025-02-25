@@ -79,10 +79,14 @@ class EMA50_daily():
         """insert the ema50_daily data to the DB
 
         """
+                    # Extract the date from the tuple if it is in tuple format
+        if ema50_above_df['date'].apply(lambda x: isinstance(x, tuple)).any():
+            ema50_above_df['date'] = ema50_above_df['date'].apply(lambda x: x[0] if isinstance(x, tuple) else x)
+            
         ema50_above_df['date'] = pd.to_datetime(ema50_above_df['date'], errors='coerce')
     
         ema50_above_df['date'] = ema50_above_df['date'].dt.strftime('%Y-%m-%d')
-
+        print(ema50_above_df)
         exportfilename = "ema50_above_df.csv"
         exportfile = open(exportfilename, "w")
         ema50_above_df.to_csv(exportfile, header=True, index=False,

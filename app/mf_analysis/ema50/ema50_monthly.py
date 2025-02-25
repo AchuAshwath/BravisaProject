@@ -89,6 +89,14 @@ class EMA50_monthly():
 
     def insert_ema50_monthly(self, ema50_above_df, conn, cur):
         """Insert the ema50_monthly data into the DB."""
+                            # Extract the date from the tuple if it is in tuple format
+        if ema50_above_df['date'].apply(lambda x: isinstance(x, tuple)).any():
+            ema50_above_df['date'] = ema50_above_df['date'].apply(lambda x: x[0] if isinstance(x, tuple) else x)
+            
+        ema50_above_df['date'] = pd.to_datetime(ema50_above_df['date'], errors='coerce')
+    
+        ema50_above_df['date'] = ema50_above_df['date'].dt.strftime('%Y-%m-%d')
+        
         # Create an in-memory CSV file
         csv_buffer = io.StringIO()
         ema50_above_df.to_csv(csv_buffer, header=True, index=False, float_format="%.2f", lineterminator='\r')
@@ -99,14 +107,11 @@ class EMA50_monthly():
         copy_sql = """
                 COPY mf_analysis.ema50_monthly FROM stdin WITH CSV HEADER
                 DELIMITER as ','
-               """
+            """
         
-        # Use CSV reader to handle the in-memory CSV buffer
-        csv_reader = csv.reader(csv_buffer, delimiter=',')
-
         try:
-            # Use copy_expert with CSV reader
-            cur.copy_expert(sql=copy_sql, file=csv_reader)
+            # Use copy_expert with the in-memory CSV buffer
+            cur.copy_expert(sql=copy_sql, file=csv_buffer)
             conn.commit()
 
         except Exception as e:
@@ -114,7 +119,6 @@ class EMA50_monthly():
             print(f"Error: {e}")
         
         csv_buffer.close()  # Close the in-memory CSV buffer
-    
     
     '''def insert_ema50_monthly(self, ema50_above_df, conn, cur):
         
