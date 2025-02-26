@@ -130,7 +130,7 @@ def get_scheme_list():
     cur = conn.cursor()
     
     # get all distinct shemecodes from SchemeMaster
-    scheme_master_sql = 'SELECT DISTINCT "SchemeCode" FROM public."SchemeMaster";'
+    scheme_master_sql = 'SELECT DISTINCT ON ("SchemeCode") "SchemeCode", "SchemeName", "SchemeCategoryDescription" FROM public."SchemeMaster"'
     scheme_master_df = pd.read_sql_query(scheme_master_sql, conn)
     
     # get all schemecodes from mf_category_mapping
@@ -149,7 +149,7 @@ def get_scheme_list():
     missing_scheme_list = pd.DataFrame(columns=columns)
     
     for index, row in scheme_master_df.iterrows():
-        new_row = pd.DataFrame({'scheme_code': [row['SchemeCode']], 'scheme_name': [''], 'scheme_category': [''], 'date': [''], 'btt_scheme_code': [''], 'btt_scheme_category': ['']})
+        new_row = pd.DataFrame({'scheme_code': [row['SchemeCode']], 'scheme_name': [row['SchemeName']], 'scheme_category': [row['SchemeCategoryDescription']], 'date': [''], 'btt_scheme_code': [''], 'btt_scheme_category': ['']})
         missing_scheme_list = pd.concat([missing_scheme_list, new_row], ignore_index=True)
 
     print(missing_scheme_list)

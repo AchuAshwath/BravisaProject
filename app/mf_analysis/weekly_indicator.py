@@ -50,7 +50,7 @@ class WeeklyIndicator():
                                 WHERE btt."BTTDate" = (SELECT MAX("BTTDate") FROM public."BTTList") \
                                 AND ohlc."date" = \''+str(date)+'\' ;'
         weekly_ohlc_full = sqlio.read_sql_query(weekly_ohlc_full_sql, con=conn)
-
+        print(len(weekly_ohlc_full))
         weekly_indicator_data = pd.DataFrame()
 
         stock_list = weekly_ohlc_full['company_code'].drop_duplicates(
@@ -60,7 +60,7 @@ class WeeklyIndicator():
                             ORDER BY "company_code", "gen_date" DESC;'
         weekly_trend_prev = sqlio.read_sql_query(
             weekly_trend_prev_sql, con=conn)
-
+        print(len(weekly_trend_prev))
         for stock in stock_list:
 
             stock_indicator_data = weekly_ohlc_full.loc[weekly_ohlc_full['company_code'] == stock]
@@ -113,11 +113,14 @@ class WeeklyIndicator():
 
                 # weekly_indicator_data = weekly_indicator_data.append(df)
                 weekly_indicator_data = pd.concat([weekly_indicator_data, df])
+                print("weekly_indicator_data: ", len(weekly_indicator_data))
 
                 weekly_indicator_data = weekly_indicator_data.reset_index(
                     drop=True)
+                print("weekly_indicator_data after reset index: ", len(weekly_indicator_data))
 
         # indicator_data.sort_values(by=['gen_date'], inplace=True, ascending=True)
+        print(len(weekly_indicator_data))
 
         return weekly_indicator_data
 
