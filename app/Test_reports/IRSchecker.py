@@ -17,6 +17,7 @@ from datetime import timedelta
 import utils.date_set as date_set
 import re
 import copy
+from utils.divisor import calc_industry_type_divisor
 
 
 if os.name == 'nt':
@@ -3347,19 +3348,21 @@ class IRS:
 
     sub_industry_divisor = self.group_sub_industry_divisor(master_list, conn)
 
-    # print("Calculating PrevCLose for Sector")
-    sector_divisor_index = self.calc_sector_divisor(master_list, sector_divisor, conn, today)
+    # print(    print("new sector divisor")
+    sector_divisor_index = calc_industry_type_divisor(master_list, sector_divisor, 'Sector', conn, today )
     # self.export_table("5_sector_divisor_index", sector_divisor_index)
     # print("\tsector_divisor_index ", len(sector_divisor_index))
     # print("Calculating PrevCLose for SubSector")
-    subsector_divisor_index = self.calc_subsector_divisor(master_list, subsector_divisor, conn, today)
+    # subsector_divisor_index = self.calc_subsector_divisor(master_list, subsector_divisor, conn, today)
+    subsector_divisor_index = calc_industry_type_divisor(master_list, subsector_divisor, 'SubSector', conn, today )
     # self.export_table("6_subsector_divisor_index", subsector_divisor_index)
     # print("\tsubsector_divisor_index ", len(subsector_divisor_index))
     # print("Calculating PrevCLose for Industry")
-    industry_divisor_index = self.calc_industry_divisor(master_list, industry_divisor, conn, today)
-
+    # industry_divisor_index = self.calc_industry_divisor(master_list, industry_divisor, conn, today)
+    industry_divisor_index = calc_industry_type_divisor(master_list, industry_divisor, 'Industry', conn, today )
     # print("Calculating PrevCLose for Industry")
-    sub_industry_divisor_index = self.calc_sub_industry_divisor(master_list, sub_industry_divisor, conn, today)
+    # sub_industry_divisor_index = self.calc_sub_industry_divisor(master_list, sub_industry_divisor, conn, today)
+    sub_industry_divisor_index = calc_industry_type_divisor(master_list, sub_industry_divisor, 'SubIndustry', conn, today )
 
     # print("Inserting sector divisor data")
     self.insert_sector_divisor(sector_divisor_index, conn, cur, today)
