@@ -27,23 +27,54 @@ Before you begin, ensure you have the following installed on your system:
 - **Package Manager:** `pip` or `conda`. Ensure `pip` is installed with Python.
 - **Database:** [Download PgAdmin](https://www.pgadmin.org/download/). [Download PostgreSQL](https://www.postgresql.org/download/).
 
-### Step 1: Clone the Repository
-First, clone the project repository to your local machine using Git.
-```bash
-git clone https://github.com/AchuAshwath/BravisaProject.git
-cd BravisaProject
-```
-
-### Step 2: Setting up the database
-First install Postgres and PgAdmin, [Download Postgres](https://www.postgresql.org/download/).
-```bash
-psql -h your_host -U your_username -d your_database -f create_tables.sql
-# setup.ipynb includes the script to create schemas and tables
-# Run this cell to create all the tables and schemas 
-```
 ### Documentation
 For detailed information on how to use the Bravisa Project, refer to the `Documentation` folder. This folder contains various guides and manuals to help you understand and utilize the tool effectively. Navigate to the `Documentation` folder to access these files.
 
 ```bash
 cd Documentation
 ```
+### Step 1: Clone the Repository
+First, clone the project repository to your local machine using Git.
+```bash
+git clone https://github.com/AchuAshwath/BravisaProject.git
+cd BravisaProject
+```
+### Step 2: Create a Virtual Environment (Optional but Recommended)
+
+It’s recommended to create a virtual environment to manage project
+dependencies.
+```bash
+python -m venv venv
+```
+Activate the virtual environment
+```bash
+venv\Scripts\activate
+```
+
+### Step 3: Install Dependencies
+
+Install the required Python packages using pip.
+
+```bash
+pip install -r requirements.txt
+```  
+
+### Step 4: Setting up the database
+First install Postgres and PgAdmin, [Download Postgres](https://www.postgresql.org/download/).
+```bash
+psql -h your_host -U your_username -d your_database -f create_tables.sql
+# setup.ipynb includes the script to create schemas and tables
+# Run this cell to create all the tables and schemas 
+```
+
+### Start the application
+```bash
+python app.py 
+```
+
+After any changes made while development install the Bravisa.exe file using this command, 
+```bash
+pyinstaller .\Bravisa.spec --dist-path .
+```
+
+> all of bash commands are meant to be run in the BravisaProject/app/... - working directory of this project.
