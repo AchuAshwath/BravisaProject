@@ -224,12 +224,6 @@ class BTTIndex():
                     print("OS: ", os_current)
                     print(type(btt_prevData))
 
-
-
-
-
-                
-
         return btt_prevData
 
     def insert_btt_divisor(self,btt_prevData, conn, cur, date):

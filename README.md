@@ -41,3 +41,9 @@ psql -h your_host -U your_username -d your_database -f create_tables.sql
 # setup.ipynb includes the script to create schemas and tables
 # Run this cell to create all the tables and schemas 
 ```
+### Documentation
+For detailed information on how to use the Bravisa Project, refer to the `Documentation` folder. This folder contains various guides and manuals to help you understand and utilize the tool effectively. Navigate to the `Documentation` folder to access these files.
+
+```bash
+cd Documentation
+```
