@@ -3220,3 +3220,24 @@ CREATE TABLE "logs"."OHLC"
     "runtime" numeric
 );
 
+CREATE TABLE IF NOT EXISTS public.avg_category_mapping
+(
+    scheme_name text COLLATE pg_catalog."default",
+    scheme_category text COLLATE pg_catalog."default",
+    date date,
+    btt_scheme_code text COLLATE pg_catalog."default",
+    btt_scheme_category text COLLATE pg_catalog."default"
+);
+
+CREATE TABLE IF NOT EXISTS public.ignore_scheme_master
+(
+    scheme_code numeric
+);
+
+CREATE TABLE IF NOT EXISTS public.irs_index_mapping
+(
+    indexname text COLLATE pg_catalog."default",
+    indexmapping text COLLATE pg_catalog."default"
+);
+
+
