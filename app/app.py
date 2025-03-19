@@ -339,7 +339,20 @@ def process():
             "stock_performance": ('"dash_process"."stock_performance"', '"date"'),
             "index_off_high": ('"dash_process"."index_off_high"', '"date"'),
             "index_off_low": ('"dash_process"."index_off_low"', '"date"'),
-            "index_performance": ('"dash_process"."index_performance"', '"date"')
+            "index_performance": ('"dash_process"."index_performance"', '"date"'),
+            "market_quality_number": ('"mf_analysis"."market_quality_number"', '"date"'),
+            "ema50_daily": ('"mf_analysis"."ema50_daily"', '"date"'),
+            "ema50_monthly": ('"mf_analysis"."ema50_monthly"', '"date"'),
+            "ema50_weekly": ('"mf_analysis"."ema50_weekly"', '"date"'),
+            "indicators": ('"mf_analysis"."indicators"', '"gen_date"'),
+            "indicators_monthly": ('"mf_analysis"."indicators_monthly"', '"gen_date"'),
+            "indicators_weekly": ('"mf_analysis"."indicators_weekly"', '"gen_date"'),
+            "trends": ('"mf_analysis"."trends"', '"gen_date"'),
+            "trends_weekly": ('"mf_analysis"."trends_weekly"', '"gen_date"'),
+            "trends_monthly": ('"mf_analysis"."trends_monthly"', '"gen_date"'),
+            "trend_weightage_daily": ('"mf_analysis"."trend_weightage_daily"', '"date"'),
+            "trend_weightage_weekly": ('"mf_analysis"."trend_weightage_weekly"', '"date"'),
+            "trend_weightage_monthly": ('"mf_analysis"."trend_weightage_monthly"', '"date"')
         }
 
         if submenu == "All Reports":
@@ -473,7 +486,21 @@ def download_csv(csv, report, filename, conn):
         'stock_performance': [],
         'index_off_high': [],
         'index_off_low': [],
-        'index_performance': []  
+        'index_performance': [],
+        'market_quality_number': [],
+        'ema50_daily': [],
+        'ema50_monthly': [],
+        'ema50_weekly': [],
+        'indicators': [],
+        'indicators_monthly': [],
+        'indicators_weekly': [],
+        'trends': [],
+        'trends_weekly': [],
+        'trends_monthly': [],
+        'trend_weightage_daily': [],
+        'trend_weightage_weekly': [],
+        'trend_weightage_monthly': []
+        
     }
     
     # loop through columns
