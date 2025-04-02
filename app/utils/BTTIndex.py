@@ -224,12 +224,6 @@ class BTTIndex():
                     print("OS: ", os_current)
                     print(type(btt_prevData))
 
-
-
-
-
-                
-
         return btt_prevData
 
     def insert_btt_divisor(self,btt_prevData, conn, cur, date):
@@ -568,26 +562,40 @@ class BTTIndex():
         Return:
             Data of index change for one day.
         """
+        if not isinstance(date, str):
+            print("Date is not string")
+            date = date.strftime('%Y-%m-%d')
 
-        current_close_BTTIndex_query = 'select "CLOSE" from public."IndexHistory" \
-                                        where "DATE" = \''+ str(date) +'\' and "TICKER" = \'BTTIndex\' \
-                                         order by "DATE" desc limit 1;'
+        current_close_BTTIndex_query = f"""
+            SELECT "CLOSE" 
+            FROM public."IndexHistory" 
+            WHERE "DATE" = '{date}' 
+            AND "TICKER" = 'BTTIndex' 
+            ORDER BY "DATE" DESC 
+            LIMIT 1;
+        """
         current_close_BTTIndex = sqlio.read_sql_query(current_close_BTTIndex_query, con = conn)
 
         cur_close_list = current_close_BTTIndex['CLOSE'] 
         cur_close = cur_close_list.item() if len(cur_close_list.index) == 1 else np.nan
         print("Current Close: ", cur_close)
  
-
-        prev_close_BTTIndex_query = 'select "CLOSE" from public."IndexHistory" \
-                                     where "DATE" < \''+ str(date) +'\' and "TICKER" = \'BTTIndex\' \
-                                     order by "DATE" desc limit 1;'
+        prev_close_BTTIndex_query = f"""
+            SELECT "CLOSE" 
+            FROM public."IndexHistory" 
+            WHERE "DATE" < '{date}' 
+            AND "TICKER" = 'BTTIndex' 
+            ORDER BY "DATE" DESC 
+            LIMIT 1;
+        """
+                                            
+        print(prev_close_BTTIndex_query)
         prev_close_BTTIndex = sqlio.read_sql_query(prev_close_BTTIndex_query, con = conn)
 
         prev_close_list = prev_close_BTTIndex['CLOSE'] 
-        prev_close = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
-        print("Prev Close: ", prev_close)
-        change = ((cur_close - prev_close) / prev_close) * 100 if prev_close != np.nan else 0
+        prev_close_ = prev_close_list.item() if len(prev_close_list.index) == 1 else np.nan
+        print("Prev Close: ", prev_close_)
+        change = ((cur_close - prev_close_) / prev_close_) * 100 if prev_close_ != np.nan else 0
 
         btt_index = pd.DataFrame({"Change": [change],"GenDate": [date]})
         
