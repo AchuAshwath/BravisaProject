@@ -144,6 +144,30 @@ class IndexOffHighLow:
             industry_data_offlow, indexlist)
 
         return industry_data_high, industry_data_low
+    
+    def subindustryname(self, main_data, indus_data):
+        industry = indus_data["IndexName"].drop_duplicates().tolist()
+
+        industry_data = main_data.loc[main_data["SubIndustryIndexName"].isin(
+            industry)]
+        industry_data = industry_data.rename(
+            columns={"SUbIndustryIndexName": "IndexName"})
+
+        # 1 = offhigh, 3 = date , 6=indexname
+        industry_data_offhigh = industry_data[[
+            'Off-High', 'Date', 'IndexName']]
+        # 2 = offlow, 3 = date , 6=indexname
+        industry_data_offlow = industry_data[['Off-Low', 'Date', 'IndexName']]
+
+        indexlist = industry_data["IndexName"].drop_duplicates().tolist()
+
+        industry_data_high = self.calc_index_offhigh(
+            industry_data_offhigh, indexlist)
+        industry_data_low = self.calc_index_offlow(
+            industry_data_offlow, indexlist)
+
+        return industry_data_high, industry_data_low
+        
 
     def calc_index_offhigh(self, df, indexlist):
 
@@ -329,7 +353,11 @@ def main(curr_date, conn, cur):
     print("industry Data with IndustryIndexNames")
     industry_data_high, industry_data_low = index.industryname(
         maindata, indus_data)
-
+    
+    print("industry Data with SubIndustryIndexNames")
+    industry_data_high, industry_data_low = index.subindustryname(
+        maindata, indus_data)
+    
     print("Concating all the data for sec, sub , indus OFFHIGH")
     concat_data_offhigh = index.concate_offhigh(
         sector_data_high, subsector_data_high, industry_data_high)

@@ -97,7 +97,7 @@ def dash_reports_page():
                 if check_box == "on":
                     preview_sql = f"""
                         SELECT * FROM "{schema}"."{table}"
-                        WHERE "{column}" BETWEEN '{start_date}' AND '{end_date}' AND "{non_date_columns}" = '{value}'
+                        WHERE "{column}" BETWEEN '{start_date}' AND '{end_date}' AND "{non_date_columns}" like '{value}'
                         LIMIT 10
                     """
                     preview_data = pd.read_sql_query(preview_sql, conn)
