@@ -2569,6 +2569,7 @@ CREATE TABLE public."SectorDivisor"
 );
 
 
+
 CREATE TABLE mf_analysis.ema50_daily
 (
     date date,
@@ -3240,4 +3241,291 @@ CREATE TABLE IF NOT EXISTS public.irs_index_mapping
     indexmapping text COLLATE pg_catalog."default"
 );
 
+CREATE TABLE IF NOT EXISTS public.avg_category_mapping
+(
+    scheme_name text COLLATE pg_catalog."default",
+    scheme_category text COLLATE pg_catalog."default",
+    date date,
+    btt_scheme_code text COLLATE pg_catalog."default",
+    btt_scheme_category text COLLATE pg_catalog."default"
+)
 
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.avg_category_mapping
+    OWNER to postgres;
+
+
+
+CREATE TABLE IF NOT EXISTS public."ConsolidatedEERSTTM"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "EERS" double precision,
+    "NPM" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."ConsolidatedEERSTTM"
+    OWNER to postgres;
+
+
+
+CREATE TABLE IF NOT EXISTS public."ConsolidatedERSTTM"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "ERS" double precision,
+    "NPM" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."ConsolidatedERSTTM"
+    OWNER to postgres;
+
+
+CREATE TABLE IF NOT EXISTS public."ConsolidatedQuarterlyEERS"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PATRAW" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "EERS" double precision,
+    "NPM" double precision,
+    "Ext_Flag" boolean,
+    "Q1 EERS Growth" double precision,
+    "Q1 Sales Growth" double precision,
+    "Q2 EERS" double precision,
+    "Q2 EERS Growth" double precision,
+    "Q2 Sales" double precision,
+    "Q2 Sales Growth" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."ConsolidatedQuarterlyEERS"
+    OWNER to postgres;
+
+
+CREATE TABLE IF NOT EXISTS public."ConsolidatedQuarterlyERS"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PATRAW" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "ERS" double precision,
+    "NPM" double precision,
+    "Ext_Flag" boolean,
+    "Q1 ERS Growth" double precision,
+    "Q1 Sales Growth" double precision,
+    "Q2 ERS" double precision,
+    "Q2 ERS Growth" double precision,
+    "Q2 Sales" double precision,
+    "Q2 Sales Growth" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."ConsolidatedQuarterlyERS"
+    OWNER to postgres;
+
+CREATE TABLE IF NOT EXISTS public."EERS_TTM"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "EERS" double precision,
+    "NPM" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."EERS_TTM"
+    OWNER to postgres;
+
+
+
+CREATE TABLE IF NOT EXISTS public."ERS_TTM"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "ERS" double precision,
+    "NPM" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."ERS_TTM"
+    OWNER to postgres;
+
+
+CREATE TABLE IF NOT EXISTS public.ignore_scheme_master
+(
+    scheme_code numeric
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.ignore_scheme_master
+    OWNER to postgres;
+
+
+
+CREATE TABLE IF NOT EXISTS public.irs_index_mapping
+(
+    indexname text COLLATE pg_catalog."default",
+    indexmapping text COLLATE pg_catalog."default"
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public.irs_index_mapping
+    OWNER to postgres;
+
+CREATE TABLE IF NOT EXISTS public."QuarterlyEERS"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PATRAW" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "EERS" double precision,
+    "NPM" double precision,
+    "Ext_Flag" boolean,
+    "Q1 EERS Growth" double precision,
+    "Q1 Sales Growth" double precision,
+    "Q2 EERS" double precision,
+    "Q2 EERS Growth" double precision,
+    "Q2 Sales" double precision,
+    "Q2 Sales Growth" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."QuarterlyEERS"
+    OWNER to postgres;
+
+
+
+
+CREATE TABLE IF NOT EXISTS public."QuarterlyERS"
+(
+    "CompanyCode" double precision NOT NULL,
+    "YearEnding" date NOT NULL,
+    "Months" smallint,
+    "Quarter" smallint,
+    "Sales" double precision,
+    "Expenses" double precision,
+    "EBIDTA" double precision,
+    "Interest" double precision,
+    "Depreciation" double precision,
+    "Extraordinary" double precision,
+    "OPM" double precision,
+    "Tax" double precision,
+    "PATRAW" double precision,
+    "PAT" double precision,
+    "Equity" double precision,
+    "Reserves" double precision,
+    "ERS" double precision,
+    "NPM" double precision,
+    "Ext_Flag" boolean,
+    "Q1 ERS Growth" double precision,
+    "Q1 Sales Growth" double precision,
+    "Q2 ERS" double precision,
+    "Q2 ERS Growth" double precision,
+    "Q2 Sales" double precision,
+    "Q2 Sales Growth" double precision
+)
+
+TABLESPACE pg_default;
+
+ALTER TABLE IF EXISTS public."QuarterlyERS"
+    OWNER to postgres;
