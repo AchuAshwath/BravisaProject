@@ -354,9 +354,9 @@ def main(curr_date, conn, cur):
     industry_data_high, industry_data_low = index.industryname(
         maindata, indus_data)
     
-    print("industry Data with SubIndustryIndexNames")
-    industry_data_high, industry_data_low = index.subindustryname(
-        maindata, indus_data)
+    # print("industry Data with SubIndustryIndexNames")
+    # industry_data_high, industry_data_low = index.subindustryname(
+    #     maindata, indus_data)
     
     print("Concating all the data for sec, sub , indus OFFHIGH")
     concat_data_offhigh = index.concate_offhigh(
